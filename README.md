@@ -57,6 +57,11 @@ The desktop launcher starts the same wallet service and opens it in an app-style
 browser window. On Windows, `--browser edge` is the preferred default. For
 headless smoke tests or manual launches, use `--browser none`.
 
+Desktop launcher polish:
+- `pacwallet-desktop --version` prints build metadata
+- `pacwallet-desktop --config <path>` loads a JSON config file
+- the Windows release bundle now includes `pacwallet-desktop.json`, `release.json`, and `upstreams.mainnet.template.json`
+
 ## Windows Desktop Build
 
 From a Windows machine or Windows-capable Go toolchain:
@@ -76,6 +81,12 @@ To build a releasable Windows directory with launch scripts from macOS/Linux:
 ```bash
 ./scripts/build-windows-release.sh
 ```
+
+That release directory now includes:
+- a desktop config file with startup defaults
+- a mainnet upstream template with `server1/server2/server3` RPC placeholders
+- a machine-readable release manifest
+- a zip archive when `ditto` is available
 
 ## Security Status
 

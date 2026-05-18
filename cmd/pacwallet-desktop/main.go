@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -12,13 +13,17 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
+	"github.com/Pingancoin/pacwallet/internal/buildinfo"
 	"github.com/Pingancoin/pacwallet/internal/chaincfg"
 	"github.com/Pingancoin/pacwallet/internal/service"
 	"github.com/Pingancoin/pacwallet/internal/wallet"
 	"github.com/Pingancoin/pacwallet/internal/web"
 )
+
+const defaultDesktopTitle = "Pingancoin Wallet"
 
 func main() {
 	if err := run(); err != nil {
@@ -35,9 +40,23 @@ func run() error {
 	rpcURL := flags.String("rpc", "http://127.0.0.1:9509", "pacd RPC URL")
 	listen := flags.String("listen", "127.0.0.1:0", "desktop wallet service listen address")
 	browser := flags.String("browser", "auto", "launcher preference: auto, edge, chrome, system, none")
+	title := flags.String("title", defaultDesktopTitle, "desktop window title used by browser app launchers")
+	configPath := flags.String("config", "", "optional desktop config JSON path")
+	showVersion := flags.Bool("version", false, "print desktop wallet version and exit")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
 	}
+	if *showVersion {
+		fmt.Println(buildinfo.Summary())
+		return nil
+	}
+
+	explicit := visitedFlagSet(flags)
+	cfg, loadedPath, err := loadDesktopConfig(*configPath)
+	if err != nil {
+		return err
+	}
+	applyDesktopConfig(explicit, cfg, network, walletDir, rpcURL, listen, browser, title)
 
 	params, err := selectParams(*network)
 	if err != nil {
@@ -66,13 +85,17 @@ func run() error {
 	appURL := "http://" + listener.Addr().String()
 	fmt.Printf("desktop wallet serving %s\n", appURL)
 	fmt.Printf("wallet file: %s\n", svc.WalletPath())
-	fmt.Printf("upstream pacd: %s\n", *rpcURL)
+	fmt.Printf("upstream pacd: %s\n", svc.RPCURL())
+	if loadedPath != "" {
+		fmt.Printf("desktop config: %s\n", loadedPath)
+	}
+	fmt.Printf("%s\n", buildinfo.Summary())
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
 	if *browser != "none" {
-		cmd, err := launchBrowserApp(appURL, *browser)
+		cmd, err := launchBrowserApp(appURL, *browser, *title)
 		if err != nil {
 			fmt.Printf("launcher fallback: %v\n", err)
 			fmt.Printf("open this URL manually: %s\n", appURL)
@@ -90,19 +113,19 @@ func run() error {
 	return httpServer.Shutdown(shutdownCtx)
 }
 
-func launchBrowserApp(url string, browser string) (*exec.Cmd, error) {
+func launchBrowserApp(url string, browser string, title string) (*exec.Cmd, error) {
 	switch runtime.GOOS {
 	case "windows":
-		return launchWindowsBrowserApp(url, browser)
+		return launchWindowsBrowserApp(url, browser, title)
 	case "darwin":
-		return launchDarwinBrowserApp(url, browser)
+		return launchDarwinBrowserApp(url, browser, title)
 	default:
-		return launchUnixBrowserApp(url, browser)
+		return launchUnixBrowserApp(url, browser, title)
 	}
 }
 
-func launchWindowsBrowserApp(url string, browser string) (*exec.Cmd, error) {
-	commands := browserLaunchCandidates(browser, url)
+func launchWindowsBrowserApp(url string, browser string, title string) (*exec.Cmd, error) {
+	commands := browserLaunchCandidates(browser, url, title)
 	for _, candidate := range commands {
 		if len(candidate) == 0 {
 			continue
@@ -119,7 +142,7 @@ func launchWindowsBrowserApp(url string, browser string) (*exec.Cmd, error) {
 	return nil, errors.New("no supported Windows browser launcher found")
 }
 
-func launchDarwinBrowserApp(url string, browser string) (*exec.Cmd, error) {
+func launchDarwinBrowserApp(url string, browser string, title string) (*exec.Cmd, error) {
 	app := "Microsoft Edge"
 	if browser == "chrome" {
 		app = "Google Chrome"
@@ -131,7 +154,7 @@ func launchDarwinBrowserApp(url string, browser string) (*exec.Cmd, error) {
 		}
 		return nil, nil
 	}
-	cmd := exec.Command("open", "-a", app, "--args", "--app="+url, "--new-window")
+	cmd := exec.Command("open", "-a", app, "--args", "--app="+url, "--new-window", "--app-name="+title)
 	if err := cmd.Start(); err == nil {
 		return nil, nil
 	}
@@ -142,19 +165,19 @@ func launchDarwinBrowserApp(url string, browser string) (*exec.Cmd, error) {
 	return nil, nil
 }
 
-func launchUnixBrowserApp(url string, browser string) (*exec.Cmd, error) {
+func launchUnixBrowserApp(url string, browser string, title string) (*exec.Cmd, error) {
 	candidates := [][]string{}
 	switch browser {
 	case "chrome":
-		candidates = append(candidates, []string{"google-chrome", "--app=" + url, "--new-window"})
+		candidates = append(candidates, []string{"google-chrome", "--app=" + url, "--new-window", "--app-name=" + title})
 	case "edge":
-		candidates = append(candidates, []string{"microsoft-edge", "--app=" + url, "--new-window"})
+		candidates = append(candidates, []string{"microsoft-edge", "--app=" + url, "--new-window", "--app-name=" + title})
 	case "system":
 		candidates = append(candidates, []string{"xdg-open", url})
 	default:
 		candidates = append(candidates,
-			[]string{"microsoft-edge", "--app=" + url, "--new-window"},
-			[]string{"google-chrome", "--app=" + url, "--new-window"},
+			[]string{"microsoft-edge", "--app=" + url, "--new-window", "--app-name=" + title},
+			[]string{"google-chrome", "--app=" + url, "--new-window", "--app-name=" + title},
 			[]string{"xdg-open", url},
 		)
 	}
@@ -171,7 +194,7 @@ func launchUnixBrowserApp(url string, browser string) (*exec.Cmd, error) {
 	return nil, errors.New("no supported browser launcher found")
 }
 
-func browserLaunchCandidates(browser string, url string) [][]string {
+func browserLaunchCandidates(browser string, url string, title string) [][]string {
 	edgePaths := []string{
 		filepath.Join(os.Getenv("ProgramFiles"), "Microsoft", "Edge", "Application", "msedge.exe"),
 		filepath.Join(os.Getenv("ProgramFiles(x86)"), "Microsoft", "Edge", "Application", "msedge.exe"),
@@ -188,7 +211,7 @@ func browserLaunchCandidates(browser string, url string) [][]string {
 	build := func(paths []string) [][]string {
 		result := make([][]string, 0, len(paths))
 		for _, path := range paths {
-			result = append(result, []string{path, "--app=" + url, "--new-window"})
+			result = append(result, []string{path, "--app=" + url, "--new-window", "--app-name=" + title})
 		}
 		return result
 	}
@@ -206,6 +229,81 @@ func browserLaunchCandidates(browser string, url string) [][]string {
 		result = append(result, []string{"rundll32.exe", "url.dll,FileProtocolHandler", url})
 		return result
 	}
+}
+
+type desktopConfig struct {
+	Network   string `json:"network"`
+	WalletDir string `json:"wallet_dir"`
+	RPCURL    string `json:"rpc_url"`
+	Listen    string `json:"listen"`
+	Browser   string `json:"browser"`
+	Title     string `json:"title"`
+}
+
+func loadDesktopConfig(explicitPath string) (desktopConfig, string, error) {
+	candidates := []string{}
+	if strings.TrimSpace(explicitPath) != "" {
+		candidates = append(candidates, explicitPath)
+	} else {
+		if exe, err := os.Executable(); err == nil {
+			candidates = append(candidates, filepath.Join(filepath.Dir(exe), "pacwallet-desktop.json"))
+		}
+		if cwd, err := os.Getwd(); err == nil {
+			candidates = append(candidates, filepath.Join(cwd, "pacwallet-desktop.json"))
+		}
+	}
+	seen := map[string]struct{}{}
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+		if _, ok := seen[candidate]; ok {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		data, err := os.ReadFile(candidate)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return desktopConfig{}, "", err
+		}
+		var cfg desktopConfig
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			return desktopConfig{}, "", fmt.Errorf("desktop config %s: %w", candidate, err)
+		}
+		return cfg, candidate, nil
+	}
+	return desktopConfig{}, "", nil
+}
+
+func applyDesktopConfig(explicit map[string]bool, cfg desktopConfig, network, walletDir, rpcURL, listen, browser, title *string) {
+	if !explicit["network"] && strings.TrimSpace(cfg.Network) != "" {
+		*network = strings.TrimSpace(cfg.Network)
+	}
+	if !explicit["walletdir"] && strings.TrimSpace(cfg.WalletDir) != "" {
+		*walletDir = strings.TrimSpace(cfg.WalletDir)
+	}
+	if !explicit["rpc"] && strings.TrimSpace(cfg.RPCURL) != "" {
+		*rpcURL = strings.TrimSpace(cfg.RPCURL)
+	}
+	if !explicit["listen"] && strings.TrimSpace(cfg.Listen) != "" {
+		*listen = strings.TrimSpace(cfg.Listen)
+	}
+	if !explicit["browser"] && strings.TrimSpace(cfg.Browser) != "" {
+		*browser = strings.TrimSpace(cfg.Browser)
+	}
+	if !explicit["title"] && strings.TrimSpace(cfg.Title) != "" {
+		*title = strings.TrimSpace(cfg.Title)
+	}
+}
+
+func visitedFlagSet(fs *flag.FlagSet) map[string]bool {
+	out := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) {
+		out[f.Name] = true
+	})
+	return out
 }
 
 func resolveWindowsCommand(candidate []string) (string, []string, error) {

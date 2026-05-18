@@ -156,6 +156,12 @@ func (s *Service) UpstreamsPath() string {
 	return s.endpointsPath
 }
 
+func (s *Service) RPCURL() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.rpcURL
+}
+
 func (s *Service) Overview() (Overview, error) {
 	s.mu.Lock()
 	w, summary, err := s.loadWalletSummaryLocked()
