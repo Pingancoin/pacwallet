@@ -118,6 +118,12 @@ type UpstreamProfile struct {
 	LastUsedAt time.Time `json:"last_used_at,omitempty"`
 }
 
+type MergeUpstreamTemplateResult struct {
+	Settings UpstreamSettings `json:"settings"`
+	Added    int              `json:"added"`
+	Updated  int              `json:"updated"`
+}
+
 type AddUpstreamRequest struct {
 	Name       string `json:"name"`
 	URL        string `json:"url"`
@@ -430,6 +436,73 @@ func (s *Service) SelectUpstream(req SelectUpstreamRequest) (UpstreamSettings, e
 	return UpstreamSettings{}, fmt.Errorf("upstream profile %q not found", id)
 }
 
+func (s *Service) MergeUpstreamTemplate(path string) (MergeUpstreamTemplateResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return MergeUpstreamTemplateResult{}, fmt.Errorf("upstream template path is required")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return MergeUpstreamTemplateResult{}, err
+	}
+	var template upstreamFile
+	if err := json.Unmarshal(data, &template); err != nil {
+		return MergeUpstreamTemplateResult{}, fmt.Errorf("upstream template %s: %w", path, err)
+	}
+
+	cfg, err := s.loadUpstreamsLocked()
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return MergeUpstreamTemplateResult{}, err
+		}
+		cfg = upstreamFile{}
+	}
+
+	added := 0
+	updated := 0
+	for _, profile := range template.Profiles {
+		normalized, ok := normalizeTemplateProfile(profile)
+		if !ok {
+			continue
+		}
+		match := findMatchingProfile(cfg.Profiles, normalized)
+		if match < 0 {
+			cfg.Profiles = append(cfg.Profiles, normalized)
+			added++
+			continue
+		}
+		if mergeTemplateProfile(&cfg.Profiles[match], normalized) {
+			updated++
+		}
+	}
+
+	if cfg.ActiveID == "" {
+		cfg.ActiveID = strings.TrimSpace(template.ActiveID)
+	}
+	if cfg.ActiveID == "" && len(cfg.Profiles) > 0 {
+		cfg.ActiveID = cfg.Profiles[0].ID
+	}
+	if cfg.ActiveID != "" {
+		for _, profile := range cfg.Profiles {
+			if profile.ID == cfg.ActiveID && profile.URL != "" {
+				s.rpcURL = profile.URL
+				break
+			}
+		}
+	}
+	if err := s.saveUpstreamsLocked(cfg); err != nil {
+		return MergeUpstreamTemplateResult{}, err
+	}
+	return MergeUpstreamTemplateResult{
+		Settings: s.upstreamSettingsFromConfig(cfg),
+		Added:    added,
+		Updated:  updated,
+	}, nil
+}
+
 func (s *Service) loadWalletLocked() (*walletcore.Wallet, error) {
 	if _, err := os.Stat(s.walletPath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -697,4 +770,62 @@ func ensureUniqueProfileID(existing []UpstreamProfile, id string) string {
 		candidate = fmt.Sprintf("%s-%d", id, seq)
 		seq++
 	}
+}
+
+func normalizeTemplateProfile(profile UpstreamProfile) (UpstreamProfile, bool) {
+	profile.ID = strings.TrimSpace(profile.ID)
+	profile.Name = strings.TrimSpace(profile.Name)
+	profile.URL = normalizeRPCURL(profile.URL)
+	profile.Source = strings.TrimSpace(profile.Source)
+	if profile.ID == "" {
+		profile.ID = profileIDFromName(profile.Name)
+	}
+	if profile.ID == "" {
+		profile.ID = profileIDFromName(profile.URL)
+	}
+	if profile.Name == "" {
+		profile.Name = profile.URL
+	}
+	if profile.Source == "" {
+		profile.Source = "template"
+	}
+	if profile.ID == "" || profile.URL == "" {
+		return UpstreamProfile{}, false
+	}
+	return profile, true
+}
+
+func findMatchingProfile(existing []UpstreamProfile, candidate UpstreamProfile) int {
+	for i, profile := range existing {
+		if profile.ID == candidate.ID {
+			return i
+		}
+	}
+	for i, profile := range existing {
+		if normalizeRPCURL(profile.URL) == candidate.URL {
+			return i
+		}
+	}
+	return -1
+}
+
+func mergeTemplateProfile(existing *UpstreamProfile, candidate UpstreamProfile) bool {
+	changed := false
+	if strings.TrimSpace(existing.Name) == "" && candidate.Name != "" {
+		existing.Name = candidate.Name
+		changed = true
+	}
+	if normalizeRPCURL(existing.URL) == "" && candidate.URL != "" {
+		existing.URL = candidate.URL
+		changed = true
+	}
+	if strings.TrimSpace(existing.Source) == "" && candidate.Source != "" {
+		existing.Source = candidate.Source
+		changed = true
+	}
+	if strings.TrimSpace(existing.ID) == "" && candidate.ID != "" {
+		existing.ID = candidate.ID
+		changed = true
+	}
+	return changed
 }

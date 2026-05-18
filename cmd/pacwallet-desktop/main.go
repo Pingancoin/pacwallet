@@ -42,6 +42,7 @@ func run() error {
 	browser := flags.String("browser", "auto", "launcher preference: auto, edge, chrome, system, none")
 	title := flags.String("title", defaultDesktopTitle, "desktop window title used by browser app launchers")
 	configPath := flags.String("config", "", "optional desktop config JSON path")
+	upstreamsTemplate := flags.String("upstreamstemplate", "", "optional upstream template JSON path")
 	showVersion := flags.Bool("version", false, "print desktop wallet version and exit")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
@@ -56,13 +57,23 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	applyDesktopConfig(explicit, cfg, network, walletDir, rpcURL, listen, browser, title)
+	applyDesktopConfig(explicit, cfg, network, walletDir, rpcURL, listen, browser, title, upstreamsTemplate)
 
 	params, err := selectParams(*network)
 	if err != nil {
 		return err
 	}
 	svc := service.New(params, *walletDir, *rpcURL)
+	templatePath := resolveUpstreamsTemplatePath(*upstreamsTemplate, cfg.UpstreamsTemplate, loadedPath, *network)
+	if templatePath != "" {
+		mergeResult, err := svc.MergeUpstreamTemplate(templatePath)
+		if err != nil {
+			return err
+		}
+		if mergeResult.Added > 0 || mergeResult.Updated > 0 {
+			fmt.Printf("imported upstream presets from %s (%d added, %d updated)\n", templatePath, mergeResult.Added, mergeResult.Updated)
+		}
+	}
 	server, err := web.New(svc)
 	if err != nil {
 		return err
@@ -232,12 +243,13 @@ func browserLaunchCandidates(browser string, url string, title string) [][]strin
 }
 
 type desktopConfig struct {
-	Network   string `json:"network"`
-	WalletDir string `json:"wallet_dir"`
-	RPCURL    string `json:"rpc_url"`
-	Listen    string `json:"listen"`
-	Browser   string `json:"browser"`
-	Title     string `json:"title"`
+	Network           string `json:"network"`
+	WalletDir         string `json:"wallet_dir"`
+	RPCURL            string `json:"rpc_url"`
+	Listen            string `json:"listen"`
+	Browser           string `json:"browser"`
+	Title             string `json:"title"`
+	UpstreamsTemplate string `json:"upstreams_template"`
 }
 
 func loadDesktopConfig(explicitPath string) (desktopConfig, string, error) {
@@ -277,7 +289,7 @@ func loadDesktopConfig(explicitPath string) (desktopConfig, string, error) {
 	return desktopConfig{}, "", nil
 }
 
-func applyDesktopConfig(explicit map[string]bool, cfg desktopConfig, network, walletDir, rpcURL, listen, browser, title *string) {
+func applyDesktopConfig(explicit map[string]bool, cfg desktopConfig, network, walletDir, rpcURL, listen, browser, title, upstreamsTemplate *string) {
 	if !explicit["network"] && strings.TrimSpace(cfg.Network) != "" {
 		*network = strings.TrimSpace(cfg.Network)
 	}
@@ -296,6 +308,73 @@ func applyDesktopConfig(explicit map[string]bool, cfg desktopConfig, network, wa
 	if !explicit["title"] && strings.TrimSpace(cfg.Title) != "" {
 		*title = strings.TrimSpace(cfg.Title)
 	}
+	if !explicit["upstreamstemplate"] && strings.TrimSpace(cfg.UpstreamsTemplate) != "" {
+		*upstreamsTemplate = strings.TrimSpace(cfg.UpstreamsTemplate)
+	}
+}
+
+func resolveUpstreamsTemplatePath(explicitPath string, configPath string, loadedConfigPath string, network string) string {
+	candidates := []string{}
+	add := func(base string, anchorDir string, includeSelf bool) {
+		base = strings.TrimSpace(base)
+		if base == "" {
+			return
+		}
+		if anchorDir != "" && !filepath.IsAbs(base) {
+			base = filepath.Join(anchorDir, base)
+		}
+		if includeSelf {
+			candidates = append(candidates, base)
+		}
+		if info, err := os.Stat(base); err == nil && info.IsDir() {
+			candidates = append(candidates,
+				filepath.Join(base, "upstreams."+network+".template.json"),
+				filepath.Join(base, "upstreams.template.json"),
+				filepath.Join(base, "upstreams.mainnet.template.json"),
+			)
+			return
+		}
+		if strings.HasSuffix(strings.ToLower(base), ".json") {
+			dir := filepath.Dir(base)
+			candidates = append(candidates,
+				filepath.Join(dir, "upstreams."+network+".template.json"),
+				filepath.Join(dir, "upstreams.template.json"),
+				filepath.Join(dir, "upstreams.mainnet.template.json"),
+			)
+		}
+	}
+
+	add(explicitPath, "", true)
+	add(configPath, filepath.Dir(loadedConfigPath), true)
+	add(loadedConfigPath, "", false)
+	if exe, err := os.Executable(); err == nil {
+		add(filepath.Dir(exe), "", false)
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		add(cwd, "", false)
+	}
+
+	seen := map[string]struct{}{}
+	for _, candidate := range candidates {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" {
+			continue
+		}
+		resolved := candidate
+		if !filepath.IsAbs(resolved) {
+			resolved = filepath.Clean(resolved)
+		}
+		if _, ok := seen[resolved]; ok {
+			continue
+		}
+		seen[resolved] = struct{}{}
+		info, err := os.Stat(resolved)
+		if err != nil || info.IsDir() {
+			continue
+		}
+		return resolved
+	}
+	return ""
 }
 
 func visitedFlagSet(fs *flag.FlagSet) map[string]bool {

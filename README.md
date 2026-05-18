@@ -51,7 +51,8 @@ Backup and restore notes:
 Node access notes:
 - the wallet talks to `pacd` HTTP/RPC endpoints, not raw P2P seed discovery
 - default behavior stays local-node first
-- when official RPC servers are deployed, add them as upstream profiles and switch the active endpoint in the UI
+- the desktop launcher can auto-import `upstreams.<network>.template.json` presets on first launch
+- when official RPC servers are deployed, switch the active endpoint in the UI instead of hand-editing the wallet state
 - seed nodes are still useful for `pacd` peer discovery, but they should not be treated as the wallet's default backend unless they also expose the RPC service you want to support publicly
 
 The desktop launcher starts the same wallet service and opens it in an app-style
@@ -61,6 +62,7 @@ headless smoke tests or manual launches, use `--browser none`.
 Desktop launcher polish:
 - `pacwallet-desktop --version` prints build metadata
 - `pacwallet-desktop --config <path>` loads a JSON config file
+- `pacwallet-desktop --upstreamstemplate <path>` imports endpoint presets before the UI opens
 - the Windows release bundle now includes `pacwallet-desktop.json`, `release.json`, and `upstreams.mainnet.template.json`
 - the first-run UI now leads with node endpoint selection before wallet create/restore
 
@@ -87,6 +89,7 @@ To build a releasable Windows directory with launch scripts from macOS/Linux:
 That release directory now includes:
 - a desktop config file with startup defaults
 - a mainnet upstream template with `server1/server2/server3` RPC placeholders
+- automatic template import when `pacwallet-desktop.json` points at that file
 - a machine-readable release manifest
 - a generated `branding/` directory with app and website icon assets
 - an Inno Setup installer template and signing helper scripts

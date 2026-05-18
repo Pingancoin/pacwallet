@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 
@@ -148,6 +149,65 @@ func TestServiceUpstreamProfiles(t *testing.T) {
 	}
 	if settings.ActiveID != "local-node" || settings.ActiveURL != "http://127.0.0.1:29509" {
 		t.Fatalf("select local result = %+v", settings)
+	}
+}
+
+func TestServiceMergeUpstreamTemplate(t *testing.T) {
+	params := chaincfg.MainNetParams()
+	walletDir := t.TempDir()
+
+	svc := service.New(params, walletDir, "http://127.0.0.1:9509")
+	templatePath := filepath.Join(walletDir, "upstreams.mainnet.template.json")
+	template := []byte(`{
+  "active_id": "server1-rpc",
+  "profiles": [
+    {
+      "id": "local-node",
+      "name": "Local Node",
+      "url": "http://127.0.0.1:9509",
+      "source": "local"
+    },
+    {
+      "id": "server1-rpc",
+      "name": "Server 1 RPC",
+      "url": "https://server1.pingancoin.org",
+      "source": "official"
+    },
+    {
+      "id": "server2-rpc",
+      "name": "Server 2 RPC",
+      "url": "https://server2.pingancoin.org",
+      "source": "official"
+    }
+  ]
+}`)
+	if err := os.WriteFile(templatePath, template, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := svc.MergeUpstreamTemplate(templatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Added != 2 {
+		t.Fatalf("added = %d, want 2", result.Added)
+	}
+	if result.Settings.ActiveID != "local-node" {
+		t.Fatalf("active ID = %s, want local-node", result.Settings.ActiveID)
+	}
+	if result.Settings.ActiveURL != "http://127.0.0.1:9509" {
+		t.Fatalf("active URL = %s, want local node URL", result.Settings.ActiveURL)
+	}
+	if len(result.Settings.Profiles) != 3 {
+		t.Fatalf("profile count = %d, want 3", len(result.Settings.Profiles))
+	}
+
+	result, err = svc.MergeUpstreamTemplate(templatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Added != 0 || result.Updated != 0 {
+		t.Fatalf("second merge result = %+v, want no changes", result)
 	}
 }
 

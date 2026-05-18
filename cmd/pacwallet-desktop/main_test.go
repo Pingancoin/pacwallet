@@ -13,17 +13,19 @@ func TestApplyDesktopConfig(t *testing.T) {
 	listen := "127.0.0.1:0"
 	browser := "auto"
 	title := defaultDesktopTitle
+	upstreamsTemplate := ""
 
 	applyDesktopConfig(map[string]bool{
 		"network": true,
 	}, desktopConfig{
-		Network:   "mainnet",
-		WalletDir: "/tmp/custom-wallet",
-		RPCURL:    "https://server1.pingancoin.org",
-		Listen:    "127.0.0.1:19709",
-		Browser:   "edge",
-		Title:     "PAC Wallet Desktop",
-	}, &network, &walletDir, &rpcURL, &listen, &browser, &title)
+		Network:           "mainnet",
+		WalletDir:         "/tmp/custom-wallet",
+		RPCURL:            "https://server1.pingancoin.org",
+		Listen:            "127.0.0.1:19709",
+		Browser:           "edge",
+		Title:             "PAC Wallet Desktop",
+		UpstreamsTemplate: "/tmp/upstreams.mainnet.template.json",
+	}, &network, &walletDir, &rpcURL, &listen, &browser, &title, &upstreamsTemplate)
 
 	if network != "simnet" {
 		t.Fatalf("network = %s, want simnet", network)
@@ -42,6 +44,9 @@ func TestApplyDesktopConfig(t *testing.T) {
 	}
 	if title != "PAC Wallet Desktop" {
 		t.Fatalf("title = %s", title)
+	}
+	if upstreamsTemplate != "/tmp/upstreams.mainnet.template.json" {
+		t.Fatalf("upstreamsTemplate = %s", upstreamsTemplate)
 	}
 }
 
@@ -62,5 +67,27 @@ func TestLoadDesktopConfig(t *testing.T) {
 	}
 	if cfg.Network != "mainnet" || cfg.RPCURL != "https://server2.pingancoin.org" || cfg.Browser != "edge" {
 		t.Fatalf("config = %+v", cfg)
+	}
+}
+
+func TestResolveUpstreamsTemplatePath(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "pacwallet-desktop.json")
+	templatePath := filepath.Join(dir, "upstreams.mainnet.template.json")
+	if err := os.WriteFile(configPath, []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(templatePath, []byte(`{"profiles":[]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	resolved := resolveUpstreamsTemplatePath("", "", configPath, "mainnet")
+	if resolved != templatePath {
+		t.Fatalf("resolved = %s, want %s", resolved, templatePath)
+	}
+
+	relativeTemplate := resolveUpstreamsTemplatePath("", "upstreams.mainnet.template.json", configPath, "mainnet")
+	if relativeTemplate != templatePath {
+		t.Fatalf("relativeTemplate = %s, want %s", relativeTemplate, templatePath)
 	}
 }

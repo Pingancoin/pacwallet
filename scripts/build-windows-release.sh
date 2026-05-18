@@ -37,7 +37,8 @@ cat >"$OUT_DIR/pacwallet-desktop.json" <<'EOF'
   "rpc_url": "http://127.0.0.1:9509",
   "listen": "127.0.0.1:19709",
   "browser": "edge",
-  "title": "Pingancoin Wallet"
+  "title": "Pingancoin Wallet",
+  "upstreams_template": "upstreams.mainnet.template.json"
 }
 EOF
 
@@ -55,19 +56,19 @@ cat >"$OUT_DIR/upstreams.mainnet.template.json" <<'EOF'
       "id": "server1-rpc",
       "name": "Server 1 RPC",
       "url": "https://server1.pingancoin.org",
-      "source": "custom"
+      "source": "official"
     },
     {
       "id": "server2-rpc",
       "name": "Server 2 RPC",
       "url": "https://server2.pingancoin.org",
-      "source": "custom"
+      "source": "official"
     },
     {
       "id": "server3-rpc",
       "name": "Server 3 RPC",
       "url": "https://server3.pingancoin.org",
-      "source": "custom"
+      "source": "official"
     }
   ]
 }
@@ -144,7 +145,7 @@ Recommended setup:
 1. Start pacd with RPC enabled.
 2. Review pacwallet-desktop.json and set rpc_url if needed.
 3. Double-click run-pacwallet-desktop.bat.
-4. If you deploy official RPC servers later, copy the template endpoints into the wallet's upstream config.
+4. The desktop launcher imports upstreams.mainnet.template.json automatically on first run.
 5. On first run, create or restore wallet.json.
 6. Build the installer from packaging\windows\pacwallet-installer.iss on a Windows packaging machine.
 7. Sign the exe and installer with your code-signing certificate.
