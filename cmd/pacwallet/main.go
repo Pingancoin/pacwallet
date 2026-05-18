@@ -4,16 +4,19 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 
 	"github.com/Pingancoin/pacwallet/internal/chaincfg"
+	"github.com/Pingancoin/pacwallet/internal/service"
 	"github.com/Pingancoin/pacwallet/internal/wallet"
+	"github.com/Pingancoin/pacwallet/internal/web"
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		exit(fmt.Errorf("command required: info, create, encrypt, changepassphrase, newaddress, receive, importprivkey, exportprivkey, list, pubkeys, balance, history, drafttx, send"))
+		exit(fmt.Errorf("command required: info, create, encrypt, changepassphrase, newaddress, receive, importprivkey, exportprivkey, list, pubkeys, balance, history, drafttx, send, serve"))
 	}
 	if err := run(os.Args[1], os.Args[2:]); err != nil {
 		exit(err)
@@ -50,6 +53,8 @@ func run(command string, args []string) error {
 		return draftTx(args)
 	case "send":
 		return send(args)
+	case "serve":
+		return serve(args)
 	default:
 		return fmt.Errorf("unknown command %q", command)
 	}
@@ -511,6 +516,30 @@ func send(args []string) error {
 	return nil
 }
 
+func serve(args []string) error {
+	flags := newFlagSet("serve")
+	network := flags.String("network", "simnet", "network to use: mainnet, testnet, simnet")
+	walletDir := flags.String("walletdir", wallet.DefaultDir(), "base wallet directory")
+	rpcURL := flags.String("rpc", "http://127.0.0.1:9509", "pacd RPC URL")
+	listen := flags.String("listen", "127.0.0.1:19709", "wallet service listen address")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	params, err := selectParams(*network)
+	if err != nil {
+		return err
+	}
+	svc := service.New(params, *walletDir, *rpcURL)
+	server, err := web.New(svc)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("wallet service listening on http://%s\n", *listen)
+	fmt.Printf("wallet file: %s\n", svc.WalletPath())
+	fmt.Printf("upstream pacd: %s\n", *rpcURL)
+	return http.ListenAndServe(*listen, server.Handler())
+}
+
 func newFlagSet(name string) *flag.FlagSet {
 	flags := flag.NewFlagSet("pacwallet "+name, flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
@@ -580,14 +609,7 @@ func joinAddresses(addresses []string) string {
 }
 
 func formatPAC(atoms int64) string {
-	sign := ""
-	if atoms < 0 {
-		sign = "-"
-		atoms = -atoms
-	}
-	whole := atoms / chaincfg.Coin
-	frac := atoms % chaincfg.Coin
-	return fmt.Sprintf("%s%d.%08d", sign, whole, frac)
+	return wallet.FormatPAC(atoms)
 }
 
 func exit(err error) {

@@ -1,0 +1,50 @@
+{{define "head"}}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{.Title}}</title>
+    <link rel="stylesheet" href="/static/style.css">
+  </head>
+  <body>
+{{end}}
+
+{{define "topbar"}}
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <div class="brand">
+      <div class="brand-mark">PAC</div>
+      <div class="brand-copy">
+        <strong class="brand-name">Pingancoin Wallet</strong>
+        <span class="brand-sub">{{.Overview.Wallet.Network}} wallet service</span>
+      </div>
+    </div>
+    <div class="rpc-chip">{{.Overview.RPCURL}}</div>
+  </div>
+</header>
+{{end}}
+
+{{define "banner"}}
+{{if .Notice}}
+<div class="shell feedback-row">
+  <div class="feedback success">{{.Notice}}</div>
+</div>
+{{end}}
+{{if .Error}}
+<div class="shell feedback-row">
+  <div class="feedback error">{{.Error}}</div>
+</div>
+{{end}}
+{{end}}
+
+{{define "footer"}}
+<footer class="footer">
+  <div class="shell footer-inner">
+    <span>{{.Now.Format "2006-01-02 15:04:05 MST"}}</span>
+    <span>{{.Overview.Wallet.Path}}</span>
+  </div>
+</footer>
+  </body>
+</html>
+{{end}}

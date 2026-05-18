@@ -40,3 +40,14 @@ func ParsePACAmount(s string) (int64, error) {
 	}
 	return whole*chaincfg.Coin + fracAtoms, nil
 }
+
+func FormatPAC(atoms int64) string {
+	sign := ""
+	if atoms < 0 {
+		sign = "-"
+		atoms = -atoms
+	}
+	whole := atoms / chaincfg.Coin
+	frac := atoms % chaincfg.Coin
+	return fmt.Sprintf("%s%d.%08d", sign, whole, frac)
+}
