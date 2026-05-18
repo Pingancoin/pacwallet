@@ -6,6 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{.Title}}</title>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" type="image/x-icon" href="/static/branding/pingancoin-icon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/branding/pingancoin-icon-32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/branding/pingancoin-icon-180.png">
   </head>
   <body>
 {{end}}
@@ -14,7 +17,7 @@
 <header class="topbar">
   <div class="shell topbar-inner">
     <div class="brand">
-      <div class="brand-mark">PAC</div>
+      <img class="brand-mark" src="/static/branding/pingancoin-icon-64.png" alt="Pingancoin icon">
       <div class="brand-copy">
         <strong class="brand-name">Pingancoin Wallet</strong>
         <span class="brand-sub">{{.Overview.Wallet.Network}} wallet service</span>

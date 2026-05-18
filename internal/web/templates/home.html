@@ -5,28 +5,99 @@
 {{$page := .Overview}}
 <main class="shell page">
   {{if not $page.Wallet.Exists}}
-  <section class="hero">
-    <div>
+  <section class="hero hero-onboarding">
+    <div class="hero-copy">
       <p class="eyebrow">First run</p>
-      <h1>Create your wallet</h1>
-      <p class="lede">Start with a local PAC wallet file, or restore a previous `wallet.json` backup before you connect to `pacd`.</p>
+      <h1>Set up Pingancoin Wallet</h1>
+      <p class="lede">Pick the node you want to trust, then create a new wallet or restore an existing `wallet.json`. Local `pacd` stays the safest default until your official RPC servers are online.</p>
     </div>
-    <div class="stack">
-      <form class="setup-form" method="post" action="/wallet/create">
-        <label>
-          <span>Passphrase (optional)</span>
-          <input type="password" name="passphrase" placeholder="Leave blank for an unencrypted dev wallet">
-        </label>
-        <button type="submit">Create Wallet</button>
-      </form>
-      <form class="setup-form" method="post" action="/wallet/restore" enctype="multipart/form-data">
-        <label>
-          <span>Restore wallet.json</span>
-          <input type="file" name="walletfile" accept=".json,application/json">
-        </label>
-        <button type="submit">Restore Wallet</button>
-      </form>
-    </div>
+    <img class="hero-icon" src="/static/branding/pingancoin-icon-192.png" alt="Pingancoin icon">
+  </section>
+
+  <section class="dashboard-grid onboarding-grid">
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Step 1</p>
+          <h2>Choose a node endpoint</h2>
+          <p>Wallets use RPC endpoints, not raw seed peers. Start with your local node, then add official RPC endpoints like `server1.pingancoin.org` when they are deployed.</p>
+        </div>
+        <span class="meta-chip">{{short $page.Upstream.ActiveURL}}</span>
+      </div>
+      <div class="stack">
+        <div class="detail-grid">
+          <div>
+            <span class="detail-label">Current endpoint</span>
+            <strong class="mono small">{{$page.Upstream.ActiveURL}}</strong>
+          </div>
+          <div>
+            <span class="detail-label">Saved profiles</span>
+            <strong>{{len $page.Upstream.Profiles}}</strong>
+          </div>
+        </div>
+        <form class="inline-form" method="post" action="/upstream/select">
+          <label>
+            <span>Saved endpoint</span>
+            <select name="upstream_id">
+              {{range $page.Upstream.Profiles}}
+              <option value="{{.ID}}" {{if eq .ID $page.Upstream.ActiveID}}selected{{end}}>{{.Name}} - {{.URL}}</option>
+              {{end}}
+            </select>
+          </label>
+          <button type="submit">Use This Endpoint</button>
+        </form>
+        <form class="stack form-grid" method="post" action="/upstream/add">
+          <div class="split">
+            <label>
+              <span>Profile name</span>
+              <input type="text" name="name" placeholder="Server 1 RPC">
+            </label>
+            <label>
+              <span>RPC URL</span>
+              <input type="text" name="url" placeholder="https://server1.pingancoin.org">
+            </label>
+          </div>
+          <label class="checkbox-row">
+            <input type="checkbox" name="make_active" checked>
+            <span>Switch to this endpoint right away</span>
+          </label>
+          <button type="submit">Save Endpoint</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Step 2</p>
+          <h2>Create or restore wallet</h2>
+          <p>New users create a wallet. Existing users restore their `wallet.json` directly here before the app starts tracking balances.</p>
+        </div>
+      </div>
+      <div class="stack choice-stack">
+        <form class="setup-form choice-card" method="post" action="/wallet/create">
+          <div>
+            <strong>Create a new wallet</strong>
+            <p class="lede compact">Generates a fresh PAC wallet file on this machine.</p>
+          </div>
+          <label>
+            <span>Passphrase (optional)</span>
+            <input type="password" name="passphrase" placeholder="Leave blank for an unencrypted dev wallet">
+          </label>
+          <button type="submit">Create Wallet</button>
+        </form>
+        <form class="setup-form choice-card" method="post" action="/wallet/restore" enctype="multipart/form-data">
+          <div>
+            <strong>Restore an existing wallet</strong>
+            <p class="lede compact">Uploads a previous `wallet.json` and places it in the local wallet directory.</p>
+          </div>
+          <label>
+            <span>Restore wallet.json</span>
+            <input type="file" name="walletfile" accept=".json,application/json">
+          </label>
+          <button type="submit">Restore Wallet</button>
+        </form>
+      </div>
   </section>
   {{else}}
   <section class="metrics">
@@ -88,11 +159,11 @@
           <div class="split">
             <label>
               <span>Profile name</span>
-              <input type="text" name="name" placeholder="Official RPC 1">
+              <input type="text" name="name" placeholder="Server 1 RPC">
             </label>
             <label>
               <span>RPC URL</span>
-              <input type="text" name="url" placeholder="https://rpc1.pingancoin.org">
+              <input type="text" name="url" placeholder="https://server1.pingancoin.org">
             </label>
           </div>
           <label class="checkbox-row">

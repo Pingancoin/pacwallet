@@ -16,7 +16,7 @@ import (
 	"github.com/Pingancoin/pacwallet/internal/wallet"
 )
 
-//go:embed templates/*.html static/*
+//go:embed templates/*.html static/* static/branding/*
 var assets embed.FS
 
 type Server struct {

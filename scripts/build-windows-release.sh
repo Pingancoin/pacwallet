@@ -24,6 +24,11 @@ GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o "$OUT_DIR/pacwallet-de
 popd >/dev/null
 
 cp "$ROOT/README.md" "$OUT_DIR/README.md"
+mkdir -p "$OUT_DIR/branding" "$OUT_DIR/packaging/windows"
+cp "$ROOT/assets/branding/pingancoin/"* "$OUT_DIR/branding/"
+cp "$ROOT/packaging/windows/pacwallet-installer.iss" "$OUT_DIR/packaging/windows/pacwallet-installer.iss"
+cp "$ROOT/scripts/build-windows-installer.sh" "$OUT_DIR/build-windows-installer.sh"
+cp "$ROOT/scripts/sign-windows-release.sh" "$OUT_DIR/sign-windows-release.sh"
 
 cat >"$OUT_DIR/pacwallet-desktop.json" <<'EOF'
 {
@@ -80,6 +85,10 @@ cat >"$OUT_DIR/release.json" <<EOF
     "pacwallet-desktop.exe",
     "pacwallet-desktop.json",
     "upstreams.mainnet.template.json",
+    "branding/",
+    "packaging/windows/pacwallet-installer.iss",
+    "build-windows-installer.sh",
+    "sign-windows-release.sh",
     "run-pacwallet-desktop.bat",
     "run-pacwallet-web.bat",
     "WINDOWS_RELEASE_NOTES.txt",
@@ -124,6 +133,10 @@ Files:
 - pacwallet-desktop.json: default desktop startup config
 - upstreams.mainnet.template.json: template official RPC endpoint profiles
 - release.json: machine-readable version manifest
+- branding\*: app icons and website icon assets
+- packaging\windows\pacwallet-installer.iss: installer template for Inno Setup
+- build-windows-installer.sh: helper for compiling the installer on a Windows build box
+- sign-windows-release.sh: helper for code signing release binaries later
 - run-pacwallet-desktop.bat: convenience launcher for desktop mode
 - run-pacwallet-web.bat: convenience launcher for browser-hosted mode
 
@@ -133,6 +146,8 @@ Recommended setup:
 3. Double-click run-pacwallet-desktop.bat.
 4. If you deploy official RPC servers later, copy the template endpoints into the wallet's upstream config.
 5. On first run, create or restore wallet.json.
+6. Build the installer from packaging\windows\pacwallet-installer.iss on a Windows packaging machine.
+7. Sign the exe and installer with your code-signing certificate.
 
 Environment overrides:
 - PAC_RPC_URL=http://127.0.0.1:9509

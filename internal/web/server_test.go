@@ -46,8 +46,11 @@ func TestServerSetupAndDashboard(t *testing.T) {
 		t.Fatal(err)
 	}
 	body := mustReadString(t, resp)
-	if !strings.Contains(body, "Create your wallet") {
+	if !strings.Contains(body, "Set up Pingancoin Wallet") {
 		t.Fatalf("home body missing setup state: %s", body)
+	}
+	if !strings.Contains(body, "Choose a node endpoint") {
+		t.Fatalf("home body missing endpoint onboarding: %s", body)
 	}
 
 	client := &http.Client{
@@ -87,6 +90,9 @@ func TestServerRestoreWalletForm(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := sourceWallet.AddKey(params, "restored"); err != nil {
+		t.Fatal(err)
+	}
+	if err := walletcore.Save(walletcore.Path(sourceDir, params.Name), sourceWallet); err != nil {
 		t.Fatal(err)
 	}
 	sourceData, err := os.ReadFile(walletcore.Path(sourceDir, params.Name))

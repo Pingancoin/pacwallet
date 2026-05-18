@@ -14,6 +14,7 @@ It now includes:
 - a browser-based UI wallet
 - a desktop launcher aimed at Windows app-window usage through Edge or Chrome
 - upstream RPC endpoint profiles with local-first defaults
+- a generated branding/icon set under `assets/branding/pingancoin`
 
 ## Try It
 
@@ -61,6 +62,7 @@ Desktop launcher polish:
 - `pacwallet-desktop --version` prints build metadata
 - `pacwallet-desktop --config <path>` loads a JSON config file
 - the Windows release bundle now includes `pacwallet-desktop.json`, `release.json`, and `upstreams.mainnet.template.json`
+- the first-run UI now leads with node endpoint selection before wallet create/restore
 
 ## Windows Desktop Build
 
@@ -86,6 +88,8 @@ That release directory now includes:
 - a desktop config file with startup defaults
 - a mainnet upstream template with `server1/server2/server3` RPC placeholders
 - a machine-readable release manifest
+- a generated `branding/` directory with app and website icon assets
+- an Inno Setup installer template and signing helper scripts
 - a zip archive when `ditto` is available
 
 ## Security Status
