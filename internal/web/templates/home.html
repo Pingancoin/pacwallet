@@ -9,15 +9,24 @@
     <div>
       <p class="eyebrow">First run</p>
       <h1>Create your wallet</h1>
-      <p class="lede">Start with a local PAC wallet file, then connect the UI to your running `pacd` node.</p>
+      <p class="lede">Start with a local PAC wallet file, or restore a previous `wallet.json` backup before you connect to `pacd`.</p>
     </div>
-    <form class="setup-form" method="post" action="/wallet/create">
-      <label>
-        <span>Passphrase (optional)</span>
-        <input type="password" name="passphrase" placeholder="Leave blank for an unencrypted dev wallet">
-      </label>
-      <button type="submit">Create Wallet</button>
-    </form>
+    <div class="stack">
+      <form class="setup-form" method="post" action="/wallet/create">
+        <label>
+          <span>Passphrase (optional)</span>
+          <input type="password" name="passphrase" placeholder="Leave blank for an unencrypted dev wallet">
+        </label>
+        <button type="submit">Create Wallet</button>
+      </form>
+      <form class="setup-form" method="post" action="/wallet/restore" enctype="multipart/form-data">
+        <label>
+          <span>Restore wallet.json</span>
+          <input type="file" name="walletfile" accept=".json,application/json">
+        </label>
+        <button type="submit">Restore Wallet</button>
+      </form>
+    </div>
   </section>
   {{else}}
   <section class="metrics">
@@ -147,6 +156,34 @@
             <span class="detail-label">Created</span>
             <strong>{{$page.Wallet.CreatedAt.Format "2006-01-02 15:04:05 UTC"}}</strong>
           </div>
+        </div>
+        <form class="stack" method="post" action="/wallet/restore" enctype="multipart/form-data">
+          <label>
+            <span>Restore from wallet.json</span>
+            <input type="file" name="walletfile" accept=".json,application/json">
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" name="overwrite">
+            <span>Replace the current wallet and archive the old one first</span>
+          </label>
+          <button type="submit">Restore Wallet Backup</button>
+        </form>
+        <div class="backup-list">
+          <div class="backup-header">
+            <strong>Archived backups</strong>
+            <span>{{len $page.Wallet.Backups}} saved</span>
+          </div>
+          {{range $page.Wallet.Backups}}
+          <a class="backup-row" href="/download/backup/{{.Name}}">
+            <div>
+              <strong>{{.Name}}</strong>
+              <span>{{.CreatedAt.Format "2006-01-02 15:04:05 UTC"}}</span>
+            </div>
+            <span>{{.SizeBytes}} bytes</span>
+          </a>
+          {{else}}
+          <div class="empty">No archived wallet backups yet.</div>
+          {{end}}
         </div>
         <form class="stack" method="post" action="/keys/import">
           <label>

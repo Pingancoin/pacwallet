@@ -341,6 +341,54 @@ tbody tr:last-child td {
   align-self: center;
 }
 
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.checkbox-row input {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+}
+
+.checkbox-row span {
+  min-width: 0;
+}
+
+.backup-list {
+  display: grid;
+  gap: 10px;
+  padding: 0 22px;
+}
+
+.backup-header,
+.backup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.backup-header span,
+.backup-row span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.backup-row {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.backup-row strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
 .footer {
   padding: 0 0 24px;
 }

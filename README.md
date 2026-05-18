@@ -33,9 +33,16 @@ The web wallet serves:
 - `GET /` for the UI
 - `GET /api/overview`
 - `POST /api/wallet/create`
+- `POST /api/wallet/restore`
 - `POST /api/addresses`
 - `POST /api/keys/import`
 - `POST /api/send`
+
+Backup and restore notes:
+- `GET /download/wallet` downloads the active `wallet.json`
+- the UI can restore a `wallet.json` file directly
+- restoring over an existing wallet requires overwrite confirmation
+- overwrite restores automatically archive the previous wallet into `wallet-backups/`
 
 The desktop launcher starts the same wallet service and opens it in an app-style
 browser window. On Windows, `--browser edge` is the preferred default. For
@@ -53,6 +60,12 @@ Recommended first-run command:
 
 ```bash
 pacwallet-desktop.exe --network simnet --rpc http://127.0.0.1:9509 --browser edge
+```
+
+To build a releasable Windows directory with launch scripts from macOS/Linux:
+
+```bash
+./scripts/build-windows-release.sh
 ```
 
 ## Security Status

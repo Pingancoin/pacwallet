@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"html/template"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/url"
@@ -63,13 +64,16 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/", s.handleHome)
 	s.mux.HandleFunc("/healthz", s.handleHealth)
 	s.mux.HandleFunc("/download/wallet", s.handleWalletDownload)
+	s.mux.HandleFunc("/download/backup/", s.handleBackupDownload)
 	s.mux.HandleFunc("/wallet/create", s.handleWalletCreateForm)
+	s.mux.HandleFunc("/wallet/restore", s.handleWalletRestoreForm)
 	s.mux.HandleFunc("/addresses/create", s.handleAddressCreateForm)
 	s.mux.HandleFunc("/keys/import", s.handleImportKeyForm)
 	s.mux.HandleFunc("/send", s.handleSendForm)
 
 	s.mux.HandleFunc("/api/overview", s.handleOverviewAPI)
 	s.mux.HandleFunc("/api/wallet/create", s.handleWalletCreateAPI)
+	s.mux.HandleFunc("/api/wallet/restore", s.handleWalletRestoreAPI)
 	s.mux.HandleFunc("/api/addresses", s.handleAddressCreateAPI)
 	s.mux.HandleFunc("/api/keys/import", s.handleImportKeyAPI)
 	s.mux.HandleFunc("/api/send", s.handleSendAPI)
@@ -118,6 +122,27 @@ func (s *Server) handleWalletDownload(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
+func (s *Server) handleBackupDownload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	name := strings.TrimPrefix(r.URL.Path, "/download/backup/")
+	data, fileName, err := s.service.BackupFile(name)
+	if err != nil {
+		if errors.Is(err, service.ErrBackupNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+fileName+`"`)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
 func (s *Server) handleWalletCreateForm(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -135,6 +160,42 @@ func (s *Server) handleWalletCreateForm(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	s.redirectNotice(w, r, "Wallet created.")
+}
+
+func (s *Server) handleWalletRestoreForm(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseMultipartForm(8 << 20); err != nil {
+		s.renderFormError(w, http.StatusBadRequest, "wallet restore failed", err)
+		return
+	}
+	file, _, err := r.FormFile("walletfile")
+	if err != nil {
+		s.renderFormError(w, http.StatusBadRequest, "wallet restore failed", err)
+		return
+	}
+	defer file.Close()
+	data, err := io.ReadAll(file)
+	if err != nil {
+		s.renderFormError(w, http.StatusBadRequest, "wallet restore failed", err)
+		return
+	}
+	overwrite := r.FormValue("overwrite") == "on"
+	_, err = s.service.RestoreWallet(service.RestoreWalletRequest{
+		Data:      data,
+		Overwrite: overwrite,
+	})
+	if err != nil {
+		s.renderFormError(w, http.StatusBadRequest, "wallet restore failed", err)
+		return
+	}
+	notice := "Wallet restored."
+	if overwrite {
+		notice = "Wallet restored and previous wallet archived."
+	}
+	s.redirectNotice(w, r, notice)
 }
 
 func (s *Server) handleAddressCreateForm(w http.ResponseWriter, r *http.Request) {
@@ -227,6 +288,34 @@ func (s *Server) handleWalletCreateAPI(w http.ResponseWriter, r *http.Request) {
 	result, err := s.service.CreateWallet(req)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusCreated, result)
+}
+
+func (s *Server) handleWalletRestoreAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		WalletJSON string `json:"wallet_json"`
+		Overwrite  bool   `json:"overwrite"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	result, err := s.service.RestoreWallet(service.RestoreWalletRequest{
+		Data:      []byte(req.WalletJSON),
+		Overwrite: req.Overwrite,
+	})
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, service.ErrWalletAlreadyExists) {
+			status = http.StatusConflict
+		}
+		writeJSON(w, status, map[string]string{"error": err.Error()})
 		return
 	}
 	writeJSON(w, http.StatusCreated, result)

@@ -1,6 +1,8 @@
 package service
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -15,6 +17,8 @@ import (
 )
 
 var ErrWalletNotFound = errors.New("wallet not found")
+var ErrWalletAlreadyExists = errors.New("wallet already exists")
+var ErrBackupNotFound = errors.New("backup not found")
 
 type Service struct {
 	params     *chaincfg.Params
@@ -34,12 +38,14 @@ type Overview struct {
 type WalletSummary struct {
 	Exists      bool         `json:"exists"`
 	Path        string       `json:"path"`
+	BackupDir   string       `json:"backup_dir"`
 	Network     string       `json:"network"`
 	Encrypted   bool         `json:"encrypted"`
 	CreatedAt   time.Time    `json:"created_at"`
 	KeyCount    int          `json:"key_count"`
 	Keys        []KeySummary `json:"keys"`
 	AddressHint string       `json:"address_hint"`
+	Backups     []BackupInfo `json:"backups"`
 }
 
 type KeySummary struct {
@@ -83,6 +89,18 @@ type SendResponse struct {
 	Destination string `json:"destination"`
 }
 
+type RestoreWalletRequest struct {
+	Data      []byte `json:"-"`
+	Overwrite bool   `json:"overwrite"`
+}
+
+type BackupInfo struct {
+	Name      string    `json:"name"`
+	Path      string    `json:"path"`
+	SizeBytes int64     `json:"size_bytes"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 func New(params *chaincfg.Params, walletDir string, rpcURL string) *Service {
 	return &Service{
 		params:     params,
@@ -95,6 +113,10 @@ func (s *Service) WalletPath() string {
 	return s.walletPath
 }
 
+func (s *Service) BackupDir() string {
+	return filepath.Join(filepath.Dir(s.walletPath), "wallet-backups")
+}
+
 func (s *Service) Overview() (Overview, error) {
 	s.mu.Lock()
 	w, summary, err := s.loadWalletSummaryLocked()
@@ -105,6 +127,7 @@ func (s *Service) Overview() (Overview, error) {
 				Wallet: WalletSummary{
 					Exists:      false,
 					Path:        s.walletPath,
+					BackupDir:   s.BackupDir(),
 					Network:     s.params.Name,
 					AddressHint: s.params.AddressPrefix + "...",
 				},
@@ -141,7 +164,7 @@ func (s *Service) CreateWallet(req CreateWalletRequest) (WalletSummary, error) {
 	if err != nil {
 		return WalletSummary{}, err
 	}
-	return summarizeWallet(s.params, s.walletPath, w), nil
+	return summarizeWallet(s.params, s.walletPath, w, s.BackupDir()), nil
 }
 
 func (s *Service) CreateAddress(req CreateAddressRequest) (KeySummary, error) {
@@ -245,6 +268,60 @@ func (s *Service) WalletFile() ([]byte, string, error) {
 	return data, filepath.Base(s.walletPath), nil
 }
 
+func (s *Service) RestoreWallet(req RestoreWalletRequest) (WalletSummary, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if len(bytes.TrimSpace(req.Data)) == 0 {
+		return WalletSummary{}, fmt.Errorf("wallet restore data is empty")
+	}
+	if err := os.MkdirAll(filepath.Dir(s.walletPath), 0o700); err != nil {
+		return WalletSummary{}, err
+	}
+	if _, err := os.Stat(s.walletPath); err == nil && !req.Overwrite {
+		return WalletSummary{}, ErrWalletAlreadyExists
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return WalletSummary{}, err
+	}
+
+	w, normalized, err := s.validateWalletDataLocked(req.Data)
+	if err != nil {
+		return WalletSummary{}, err
+	}
+
+	if _, err := os.Stat(s.walletPath); err == nil {
+		if _, err := s.snapshotExistingWalletLocked(); err != nil {
+			return WalletSummary{}, err
+		}
+	}
+	if err := os.WriteFile(s.walletPath, normalized, 0o600); err != nil {
+		return WalletSummary{}, err
+	}
+	return summarizeWallet(s.params, s.walletPath, w, s.BackupDir()), nil
+}
+
+func (s *Service) BackupFile(name string) ([]byte, string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if name == "" {
+		return nil, "", fmt.Errorf("backup name is required")
+	}
+	cleanName := filepath.Base(name)
+	if cleanName != name {
+		return nil, "", fmt.Errorf("invalid backup name")
+	}
+	path := filepath.Join(s.BackupDir(), cleanName)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, "", ErrBackupNotFound
+		}
+		return nil, "", err
+	}
+	return data, cleanName, nil
+}
+
 func (s *Service) loadWalletLocked() (*walletcore.Wallet, error) {
 	if _, err := os.Stat(s.walletPath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -260,10 +337,10 @@ func (s *Service) loadWalletSummaryLocked() (*walletcore.Wallet, WalletSummary, 
 	if err != nil {
 		return nil, WalletSummary{}, err
 	}
-	return w, summarizeWallet(s.params, s.walletPath, w), nil
+	return w, summarizeWallet(s.params, s.walletPath, w, s.BackupDir()), nil
 }
 
-func summarizeWallet(params *chaincfg.Params, walletPath string, w *walletcore.Wallet) WalletSummary {
+func summarizeWallet(params *chaincfg.Params, walletPath string, w *walletcore.Wallet, backupDir string) WalletSummary {
 	keys := make([]KeySummary, 0, len(w.Keys))
 	for _, key := range w.Keys {
 		keys = append(keys, summarizeKey(key))
@@ -277,12 +354,14 @@ func summarizeWallet(params *chaincfg.Params, walletPath string, w *walletcore.W
 	return WalletSummary{
 		Exists:      true,
 		Path:        walletPath,
+		BackupDir:   backupDir,
 		Network:     w.Network,
 		Encrypted:   w.IsEncrypted(),
 		CreatedAt:   w.CreatedAt,
 		KeyCount:    len(w.Keys),
 		Keys:        keys,
 		AddressHint: params.AddressPrefix + "...",
+		Backups:     listBackupInfo(backupDir),
 	}
 }
 
@@ -292,4 +371,77 @@ func summarizeKey(key walletcore.Key) KeySummary {
 		Address:   key.Address,
 		CreatedAt: key.CreatedAt,
 	}
+}
+
+func (s *Service) validateWalletDataLocked(data []byte) (*walletcore.Wallet, []byte, error) {
+	var w walletcore.Wallet
+	if err := json.Unmarshal(data, &w); err != nil {
+		return nil, nil, fmt.Errorf("wallet restore parse: %w", err)
+	}
+	if w.Network != s.params.Name {
+		return nil, nil, fmt.Errorf("wallet restore network %q does not match %q", w.Network, s.params.Name)
+	}
+	if len(w.Keys) == 0 {
+		return nil, nil, fmt.Errorf("wallet restore contains no keys")
+	}
+	normalized, err := json.MarshalIndent(&w, "", "  ")
+	if err != nil {
+		return nil, nil, err
+	}
+	return &w, append(normalized, '\n'), nil
+}
+
+func (s *Service) snapshotExistingWalletLocked() (BackupInfo, error) {
+	data, err := os.ReadFile(s.walletPath)
+	if err != nil {
+		return BackupInfo{}, err
+	}
+	if err := os.MkdirAll(s.BackupDir(), 0o700); err != nil {
+		return BackupInfo{}, err
+	}
+	name := "wallet-" + time.Now().UTC().Format("20060102T150405Z") + ".json"
+	path := filepath.Join(s.BackupDir(), name)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return BackupInfo{}, err
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return BackupInfo{}, err
+	}
+	return BackupInfo{
+		Name:      name,
+		Path:      path,
+		SizeBytes: info.Size(),
+		CreatedAt: info.ModTime().UTC(),
+	}, nil
+}
+
+func listBackupInfo(backupDir string) []BackupInfo {
+	entries, err := os.ReadDir(backupDir)
+	if err != nil {
+		return nil
+	}
+	backups := make([]BackupInfo, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		backups = append(backups, BackupInfo{
+			Name:      entry.Name(),
+			Path:      filepath.Join(backupDir, entry.Name()),
+			SizeBytes: info.Size(),
+			CreatedAt: info.ModTime().UTC(),
+		})
+	}
+	sort.Slice(backups, func(i, j int) bool {
+		if backups[i].CreatedAt.Equal(backups[j].CreatedAt) {
+			return backups[i].Name > backups[j].Name
+		}
+		return backups[i].CreatedAt.After(backups[j].CreatedAt)
+	})
+	return backups
 }

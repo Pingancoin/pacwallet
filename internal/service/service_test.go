@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sync"
 	"testing"
 
@@ -107,6 +108,86 @@ func TestServiceSend(t *testing.T) {
 	}
 	if result.Change <= 0 {
 		t.Fatalf("change = %d, want > 0", result.Change)
+	}
+}
+
+func TestServiceRestoreWallet(t *testing.T) {
+	params := chaincfg.SimNetParams()
+	targetDir := t.TempDir()
+	sourceDir := t.TempDir()
+
+	sourceWallet, err := walletcore.Create(walletcore.Path(sourceDir, params.Name), params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sourceWallet.AddKey(params, "restored"); err != nil {
+		t.Fatal(err)
+	}
+	if err := walletcore.Save(walletcore.Path(sourceDir, params.Name), sourceWallet); err != nil {
+		t.Fatal(err)
+	}
+	sourceData, err := os.ReadFile(walletcore.Path(sourceDir, params.Name))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	svc := service.New(params, targetDir, "http://127.0.0.1:9509")
+	summary, err := svc.RestoreWallet(service.RestoreWalletRequest{Data: sourceData})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !summary.Exists || summary.KeyCount != 2 {
+		t.Fatalf("summary exists=%t key_count=%d", summary.Exists, summary.KeyCount)
+	}
+	if len(summary.Backups) != 0 {
+		t.Fatalf("backup count = %d, want 0", len(summary.Backups))
+	}
+	restored, err := walletcore.Load(walletcore.Path(targetDir, params.Name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(restored.Keys) != 2 {
+		t.Fatalf("restored keys = %d, want 2", len(restored.Keys))
+	}
+
+	if _, err := svc.RestoreWallet(service.RestoreWalletRequest{Data: sourceData}); err != service.ErrWalletAlreadyExists {
+		t.Fatalf("restore without overwrite err = %v, want %v", err, service.ErrWalletAlreadyExists)
+	}
+
+	overwriteDir := t.TempDir()
+	overwriteSource, err := walletcore.Create(walletcore.Path(overwriteDir, params.Name), params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := overwriteSource.AddKey(params, "replacement"); err != nil {
+		t.Fatal(err)
+	}
+	if err := overwriteSource.AddKey(params, "replacement-2"); err != nil {
+		t.Fatal(err)
+	}
+	if err := walletcore.Save(walletcore.Path(overwriteDir, params.Name), overwriteSource); err != nil {
+		t.Fatal(err)
+	}
+	overwriteData, err := os.ReadFile(walletcore.Path(overwriteDir, params.Name))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	summary, err = svc.RestoreWallet(service.RestoreWalletRequest{
+		Data:      overwriteData,
+		Overwrite: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.KeyCount != 3 {
+		t.Fatalf("restored overwrite key_count = %d, want 3", summary.KeyCount)
+	}
+	if len(summary.Backups) != 1 {
+		t.Fatalf("backup count after overwrite = %d, want 1", len(summary.Backups))
+	}
+	if _, _, err := svc.BackupFile(summary.Backups[0].Name); err != nil {
+		t.Fatalf("backup file read err = %v", err)
 	}
 }
 
