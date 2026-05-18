@@ -56,6 +56,57 @@
     <section class="section">
       <div class="section-header">
         <div>
+          <p class="eyebrow">Node Access</p>
+          <h2>Wallet upstream</h2>
+          <p>Use a local `pacd` node by default. When your official RPC nodes are online, add them here and switch the wallet over.</p>
+        </div>
+        <span class="meta-chip">{{short $page.Upstream.ActiveURL}}</span>
+      </div>
+      <div class="stack">
+        <div class="detail-grid">
+          <div>
+            <span class="detail-label">Current endpoint</span>
+            <strong class="mono small">{{$page.Upstream.ActiveURL}}</strong>
+          </div>
+          <div>
+            <span class="detail-label">Config file</span>
+            <strong class="mono small">{{short $page.Upstream.ConfigPath}}</strong>
+          </div>
+        </div>
+        <form class="inline-form" method="post" action="/upstream/select">
+          <label>
+            <span>Saved endpoint</span>
+            <select name="upstream_id">
+              {{range $page.Upstream.Profiles}}
+              <option value="{{.ID}}" {{if eq .ID $page.Upstream.ActiveID}}selected{{end}}>{{.Name}} - {{.URL}}</option>
+              {{end}}
+            </select>
+          </label>
+          <button type="submit">Switch Endpoint</button>
+        </form>
+        <form class="stack form-grid" method="post" action="/upstream/add">
+          <div class="split">
+            <label>
+              <span>Profile name</span>
+              <input type="text" name="name" placeholder="Official RPC 1">
+            </label>
+            <label>
+              <span>RPC URL</span>
+              <input type="text" name="url" placeholder="https://rpc1.pingancoin.org">
+            </label>
+          </div>
+          <label class="checkbox-row">
+            <input type="checkbox" name="make_active" checked>
+            <span>Switch to this endpoint right away</span>
+          </label>
+          <button type="submit">Save Endpoint</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
           <p class="eyebrow">Receive</p>
           <h2>Wallet addresses</h2>
         </div>

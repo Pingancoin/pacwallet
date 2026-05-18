@@ -67,6 +67,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/download/backup/", s.handleBackupDownload)
 	s.mux.HandleFunc("/wallet/create", s.handleWalletCreateForm)
 	s.mux.HandleFunc("/wallet/restore", s.handleWalletRestoreForm)
+	s.mux.HandleFunc("/upstream/add", s.handleUpstreamAddForm)
+	s.mux.HandleFunc("/upstream/select", s.handleUpstreamSelectForm)
 	s.mux.HandleFunc("/addresses/create", s.handleAddressCreateForm)
 	s.mux.HandleFunc("/keys/import", s.handleImportKeyForm)
 	s.mux.HandleFunc("/send", s.handleSendForm)
@@ -74,6 +76,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/overview", s.handleOverviewAPI)
 	s.mux.HandleFunc("/api/wallet/create", s.handleWalletCreateAPI)
 	s.mux.HandleFunc("/api/wallet/restore", s.handleWalletRestoreAPI)
+	s.mux.HandleFunc("/api/upstreams", s.handleUpstreamAddAPI)
+	s.mux.HandleFunc("/api/upstreams/select", s.handleUpstreamSelectAPI)
 	s.mux.HandleFunc("/api/addresses", s.handleAddressCreateAPI)
 	s.mux.HandleFunc("/api/keys/import", s.handleImportKeyAPI)
 	s.mux.HandleFunc("/api/send", s.handleSendAPI)
@@ -218,6 +222,46 @@ func (s *Server) handleAddressCreateForm(w http.ResponseWriter, r *http.Request)
 	s.redirectNotice(w, r, "New receive address created.")
 }
 
+func (s *Server) handleUpstreamAddForm(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	_, err := s.service.AddUpstream(service.AddUpstreamRequest{
+		Name:       strings.TrimSpace(r.FormValue("name")),
+		URL:        strings.TrimSpace(r.FormValue("url")),
+		MakeActive: r.FormValue("make_active") == "on",
+	})
+	if err != nil {
+		s.renderFormError(w, http.StatusBadRequest, "upstream add failed", err)
+		return
+	}
+	s.redirectNotice(w, r, "Node endpoint saved.")
+}
+
+func (s *Server) handleUpstreamSelectForm(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	_, err := s.service.SelectUpstream(service.SelectUpstreamRequest{
+		ID: strings.TrimSpace(r.FormValue("upstream_id")),
+	})
+	if err != nil {
+		s.renderFormError(w, http.StatusBadRequest, "upstream switch failed", err)
+		return
+	}
+	s.redirectNotice(w, r, "Node endpoint switched.")
+}
+
 func (s *Server) handleImportKeyForm(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -341,6 +385,42 @@ func (s *Server) handleAddressCreateAPI(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusCreated, result)
+}
+
+func (s *Server) handleUpstreamAddAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req service.AddUpstreamRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	result, err := s.service.AddUpstream(req)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusCreated, result)
+}
+
+func (s *Server) handleUpstreamSelectAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req service.SelectUpstreamRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	result, err := s.service.SelectUpstream(req)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) handleImportKeyAPI(w http.ResponseWriter, r *http.Request) {

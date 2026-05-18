@@ -111,6 +111,46 @@ func TestServiceSend(t *testing.T) {
 	}
 }
 
+func TestServiceUpstreamProfiles(t *testing.T) {
+	params := chaincfg.SimNetParams()
+	walletDir := t.TempDir()
+
+	svc := service.New(params, walletDir, "http://127.0.0.1:29509")
+	initial, err := svc.Overview()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if initial.Upstream.ActiveID != "local-node" {
+		t.Fatalf("active upstream = %s, want local-node", initial.Upstream.ActiveID)
+	}
+	if initial.Upstream.ActiveURL != "http://127.0.0.1:29509" {
+		t.Fatalf("active URL = %s", initial.Upstream.ActiveURL)
+	}
+
+	settings, err := svc.AddUpstream(service.AddUpstreamRequest{
+		Name:       "Official RPC 1",
+		URL:        "https://rpc1.pingancoin.org",
+		MakeActive: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settings.ActiveURL != "https://rpc1.pingancoin.org" {
+		t.Fatalf("active URL after add = %s", settings.ActiveURL)
+	}
+	if len(settings.Profiles) != 2 {
+		t.Fatalf("profile count = %d, want 2", len(settings.Profiles))
+	}
+
+	settings, err = svc.SelectUpstream(service.SelectUpstreamRequest{ID: "local-node"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settings.ActiveID != "local-node" || settings.ActiveURL != "http://127.0.0.1:29509" {
+		t.Fatalf("select local result = %+v", settings)
+	}
+}
+
 func TestServiceRestoreWallet(t *testing.T) {
 	params := chaincfg.SimNetParams()
 	targetDir := t.TempDir()

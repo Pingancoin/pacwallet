@@ -13,6 +13,7 @@ It now includes:
 - a local wallet service with JSON API
 - a browser-based UI wallet
 - a desktop launcher aimed at Windows app-window usage through Edge or Chrome
+- upstream RPC endpoint profiles with local-first defaults
 
 ## Try It
 
@@ -34,6 +35,8 @@ The web wallet serves:
 - `GET /api/overview`
 - `POST /api/wallet/create`
 - `POST /api/wallet/restore`
+- `POST /api/upstreams`
+- `POST /api/upstreams/select`
 - `POST /api/addresses`
 - `POST /api/keys/import`
 - `POST /api/send`
@@ -43,6 +46,12 @@ Backup and restore notes:
 - the UI can restore a `wallet.json` file directly
 - restoring over an existing wallet requires overwrite confirmation
 - overwrite restores automatically archive the previous wallet into `wallet-backups/`
+
+Node access notes:
+- the wallet talks to `pacd` HTTP/RPC endpoints, not raw P2P seed discovery
+- default behavior stays local-node first
+- when official RPC servers are deployed, add them as upstream profiles and switch the active endpoint in the UI
+- seed nodes are still useful for `pacd` peer discovery, but they should not be treated as the wallet's default backend unless they also expose the RPC service you want to support publicly
 
 The desktop launcher starts the same wallet service and opens it in an app-style
 browser window. On Windows, `--browser edge` is the preferred default. For

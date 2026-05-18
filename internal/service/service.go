@@ -21,18 +21,20 @@ var ErrWalletAlreadyExists = errors.New("wallet already exists")
 var ErrBackupNotFound = errors.New("backup not found")
 
 type Service struct {
-	params     *chaincfg.Params
-	walletPath string
-	rpcURL     string
+	params        *chaincfg.Params
+	walletPath    string
+	endpointsPath string
+	rpcURL        string
 
 	mu sync.Mutex
 }
 
 type Overview struct {
-	Wallet  WalletSummary             `json:"wallet"`
-	Balance walletcore.Balance        `json:"balance"`
-	History []walletcore.HistoryEntry `json:"history"`
-	RPCURL  string                    `json:"rpc_url"`
+	Wallet   WalletSummary             `json:"wallet"`
+	Balance  walletcore.Balance        `json:"balance"`
+	History  []walletcore.HistoryEntry `json:"history"`
+	RPCURL   string                    `json:"rpc_url"`
+	Upstream UpstreamSettings          `json:"upstream"`
 }
 
 type WalletSummary struct {
@@ -101,12 +103,45 @@ type BackupInfo struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type UpstreamSettings struct {
+	ConfigPath string            `json:"config_path"`
+	ActiveID   string            `json:"active_id"`
+	ActiveURL  string            `json:"active_url"`
+	Profiles   []UpstreamProfile `json:"profiles"`
+}
+
+type UpstreamProfile struct {
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	URL        string    `json:"url"`
+	Source     string    `json:"source"`
+	LastUsedAt time.Time `json:"last_used_at,omitempty"`
+}
+
+type AddUpstreamRequest struct {
+	Name       string `json:"name"`
+	URL        string `json:"url"`
+	MakeActive bool   `json:"make_active"`
+}
+
+type SelectUpstreamRequest struct {
+	ID string `json:"id"`
+}
+
+type upstreamFile struct {
+	ActiveID string            `json:"active_id"`
+	Profiles []UpstreamProfile `json:"profiles"`
+}
+
 func New(params *chaincfg.Params, walletDir string, rpcURL string) *Service {
-	return &Service{
-		params:     params,
-		walletPath: walletcore.Path(walletDir, params.Name),
-		rpcURL:     strings.TrimRight(rpcURL, "/"),
+	s := &Service{
+		params:        params,
+		walletPath:    walletcore.Path(walletDir, params.Name),
+		endpointsPath: filepath.Join(walletDir, params.Name, "upstreams.json"),
+		rpcURL:        strings.TrimRight(rpcURL, "/"),
 	}
+	s.bootstrapUpstreams()
+	return s
 }
 
 func (s *Service) WalletPath() string {
@@ -115,6 +150,10 @@ func (s *Service) WalletPath() string {
 
 func (s *Service) BackupDir() string {
 	return filepath.Join(filepath.Dir(s.walletPath), "wallet-backups")
+}
+
+func (s *Service) UpstreamsPath() string {
+	return s.endpointsPath
 }
 
 func (s *Service) Overview() (Overview, error) {
@@ -131,7 +170,8 @@ func (s *Service) Overview() (Overview, error) {
 					Network:     s.params.Name,
 					AddressHint: s.params.AddressPrefix + "...",
 				},
-				RPCURL: s.rpcURL,
+				RPCURL:   s.rpcURL,
+				Upstream: s.upstreamSettingsLocked(),
 			}, nil
 		}
 		return Overview{}, err
@@ -141,10 +181,11 @@ func (s *Service) Overview() (Overview, error) {
 		return Overview{}, err
 	}
 	return Overview{
-		Wallet:  summary,
-		Balance: view.Balance,
-		History: view.History,
-		RPCURL:  s.rpcURL,
+		Wallet:   summary,
+		Balance:  view.Balance,
+		History:  view.History,
+		RPCURL:   s.rpcURL,
+		Upstream: s.upstreamSettingsLocked(),
 	}, nil
 }
 
@@ -322,6 +363,67 @@ func (s *Service) BackupFile(name string) ([]byte, string, error) {
 	return data, cleanName, nil
 }
 
+func (s *Service) AddUpstream(req AddUpstreamRequest) (UpstreamSettings, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	url := normalizeRPCURL(req.URL)
+	if url == "" {
+		return UpstreamSettings{}, fmt.Errorf("upstream URL is required")
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		name = url
+	}
+	cfg, err := s.loadUpstreamsLocked()
+	if err != nil {
+		return UpstreamSettings{}, err
+	}
+	id := profileIDFromName(name)
+	if id == "" {
+		id = profileIDFromName(url)
+	}
+	id = ensureUniqueProfileID(cfg.Profiles, id)
+	cfg.Profiles = append(cfg.Profiles, UpstreamProfile{
+		ID:     id,
+		Name:   name,
+		URL:    url,
+		Source: "custom",
+	})
+	if req.MakeActive || cfg.ActiveID == "" {
+		cfg.ActiveID = id
+		s.rpcURL = url
+	}
+	if err := s.saveUpstreamsLocked(cfg); err != nil {
+		return UpstreamSettings{}, err
+	}
+	return s.upstreamSettingsFromConfig(cfg), nil
+}
+
+func (s *Service) SelectUpstream(req SelectUpstreamRequest) (UpstreamSettings, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cfg, err := s.loadUpstreamsLocked()
+	if err != nil {
+		return UpstreamSettings{}, err
+	}
+	id := strings.TrimSpace(req.ID)
+	for i := range cfg.Profiles {
+		if cfg.Profiles[i].ID != id {
+			continue
+		}
+		cfg.ActiveID = id
+		cfg.Profiles[i].LastUsedAt = time.Now().UTC()
+		s.rpcURL = cfg.Profiles[i].URL
+		if err := s.saveUpstreamsLocked(cfg); err != nil {
+			return UpstreamSettings{}, err
+		}
+		return s.upstreamSettingsFromConfig(cfg), nil
+	}
+	return UpstreamSettings{}, fmt.Errorf("upstream profile %q not found", id)
+}
+
 func (s *Service) loadWalletLocked() (*walletcore.Wallet, error) {
 	if _, err := os.Stat(s.walletPath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -370,6 +472,96 @@ func summarizeKey(key walletcore.Key) KeySummary {
 		Label:     key.Label,
 		Address:   key.Address,
 		CreatedAt: key.CreatedAt,
+	}
+}
+
+func (s *Service) bootstrapUpstreams() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cfg, err := s.loadUpstreamsLocked()
+	if err == nil && len(cfg.Profiles) > 0 {
+		for _, profile := range cfg.Profiles {
+			if profile.ID == cfg.ActiveID && profile.URL != "" {
+				s.rpcURL = normalizeRPCURL(profile.URL)
+				return
+			}
+		}
+	}
+	defaultURL := normalizeRPCURL(s.rpcURL)
+	if defaultURL == "" {
+		defaultURL = "http://127.0.0.1:9509"
+	}
+	cfg = upstreamFile{
+		ActiveID: "local-node",
+		Profiles: []UpstreamProfile{{
+			ID:     "local-node",
+			Name:   "Local Node",
+			URL:    defaultURL,
+			Source: "local",
+		}},
+	}
+	s.rpcURL = defaultURL
+	_ = s.saveUpstreamsLocked(cfg)
+}
+
+func (s *Service) loadUpstreamsLocked() (upstreamFile, error) {
+	data, err := os.ReadFile(s.endpointsPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return upstreamFile{}, os.ErrNotExist
+		}
+		return upstreamFile{}, err
+	}
+	var cfg upstreamFile
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return upstreamFile{}, err
+	}
+	for i := range cfg.Profiles {
+		cfg.Profiles[i].URL = normalizeRPCURL(cfg.Profiles[i].URL)
+	}
+	return cfg, nil
+}
+
+func (s *Service) saveUpstreamsLocked(cfg upstreamFile) error {
+	if err := os.MkdirAll(filepath.Dir(s.endpointsPath), 0o700); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(s.endpointsPath, append(data, '\n'), 0o600)
+}
+
+func (s *Service) upstreamSettingsLocked() UpstreamSettings {
+	cfg, err := s.loadUpstreamsLocked()
+	if err != nil {
+		return UpstreamSettings{
+			ConfigPath: s.endpointsPath,
+			ActiveURL:  s.rpcURL,
+		}
+	}
+	return s.upstreamSettingsFromConfig(cfg)
+}
+
+func (s *Service) upstreamSettingsFromConfig(cfg upstreamFile) UpstreamSettings {
+	profiles := append([]UpstreamProfile(nil), cfg.Profiles...)
+	sort.Slice(profiles, func(i, j int) bool {
+		return profiles[i].Name < profiles[j].Name
+	})
+	activeURL := s.rpcURL
+	for _, profile := range cfg.Profiles {
+		if profile.ID == cfg.ActiveID {
+			activeURL = profile.URL
+			break
+		}
+	}
+	return UpstreamSettings{
+		ConfigPath: s.endpointsPath,
+		ActiveID:   cfg.ActiveID,
+		ActiveURL:  activeURL,
+		Profiles:   profiles,
 	}
 }
 
@@ -444,4 +636,59 @@ func listBackupInfo(backupDir string) []BackupInfo {
 		return backups[i].CreatedAt.After(backups[j].CreatedAt)
 	})
 	return backups
+}
+
+func normalizeRPCURL(value string) string {
+	value = strings.TrimSpace(strings.TrimRight(value, "/"))
+	if value == "" {
+		return ""
+	}
+	if !strings.Contains(value, "://") {
+		value = "http://" + value
+	}
+	return value
+}
+
+func profileIDFromName(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return ""
+	}
+	var b strings.Builder
+	lastDash := false
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+			lastDash = false
+		default:
+			if !lastDash {
+				b.WriteByte('-')
+				lastDash = true
+			}
+		}
+	}
+	return strings.Trim(b.String(), "-")
+}
+
+func ensureUniqueProfileID(existing []UpstreamProfile, id string) string {
+	if id == "" {
+		id = "upstream"
+	}
+	candidate := id
+	seq := 2
+	for {
+		conflict := false
+		for _, profile := range existing {
+			if profile.ID == candidate {
+				conflict = true
+				break
+			}
+		}
+		if !conflict {
+			return candidate
+		}
+		candidate = fmt.Sprintf("%s-%d", id, seq)
+		seq++
+	}
 }

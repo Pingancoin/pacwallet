@@ -40,6 +40,7 @@ a {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -255,6 +256,7 @@ label span {
 }
 
 input,
+select,
 textarea {
   width: 100%;
   min-width: 0;
@@ -263,6 +265,10 @@ textarea {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
+}
+
+select {
+  appearance: none;
 }
 
 textarea {

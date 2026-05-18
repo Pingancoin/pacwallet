@@ -74,6 +74,9 @@ func TestServerSetupAndDashboard(t *testing.T) {
 	if !strings.Contains(body, "Broadcast transaction") {
 		t.Fatalf("home body missing send form: %s", body)
 	}
+	if !strings.Contains(body, "Wallet upstream") {
+		t.Fatalf("home body missing upstream section: %s", body)
+	}
 }
 
 func TestServerRestoreWalletForm(t *testing.T) {
