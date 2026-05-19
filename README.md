@@ -14,6 +14,7 @@ It now includes:
 - a browser-based UI wallet
 - a fuller desktop-wallet surface modeled after the shape of Bitcoin-style local wallets
 - a desktop launcher aimed at Windows app-window usage through Edge or Chrome
+- a new native `C++/Qt` desktop wallet project under `qt/`
 - upstream RPC endpoint profiles with local-first defaults
 - a generated branding/icon set under `assets/branding/pingancoin`
 
@@ -115,6 +116,20 @@ That release directory now includes:
 - an Inno Setup installer template and signing helper scripts
 - Windows-native `build-installer.bat` and `sign-release.bat` helpers
 - a zip archive when `ditto` is available
+
+## Native Qt Desktop Wallet
+
+The long-term desktop direction is now:
+
+- backend wallet/core: `Go`
+- native desktop front end: `C++/Qt`
+
+The first native Qt project scaffold lives in:
+
+- [qt/CMakeLists.txt](/Users/fanye/Documents/pacwallet/qt/CMakeLists.txt)
+- [qt/README.md](/Users/fanye/Documents/pacwallet/qt/README.md)
+
+This path is intended to replace the browser-hosted desktop shell over time with a real native wallet UI.
 
 ## Security Status
 
