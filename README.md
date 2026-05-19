@@ -35,7 +35,10 @@ go run ./cmd/pacwallet-desktop --network simnet --rpc http://127.0.0.1:9509 --br
 The web wallet serves:
 - `GET /` for the UI
 - `GET /healthz`
+- `GET /receive/qr/<address>` for receive QR images
+- `GET /tx/<txid>` for transaction detail pages
 - `GET /api/overview`
+- `GET /api/tx/<txid>`
 - `POST /api/wallet/create`
 - `POST /api/wallet/encrypt`
 - `POST /api/wallet/changepassphrase`
@@ -71,11 +74,14 @@ Desktop launcher polish:
 - `pacwallet-desktop --upstreamstemplate <path>` imports endpoint presets before the UI opens
 - the desktop home screen now includes:
   - wallet summary and node health
-  - receive/address management with visible pubkeys
+  - receive/address management with visible pubkeys and receive QR codes
   - send form
   - UTXO and transaction history tables
+  - transaction detail drill-down pages
   - multisig preview for 3-of-5 collection
   - backup, encryption, and passphrase rotation controls
+- history filtering by incoming/outgoing/pending/coinbase plus txid/address search
+- local signer export text for multisig coordination
 - the Windows release bundle now includes `pacwallet-desktop.json`, `release.json`, and `upstreams.mainnet.template.json`
 - the first-run UI now leads with node endpoint selection before wallet create/restore
 - the Windows installer keeps app binaries under the user program directory and the desktop config under `%AppData%\Pingancoin Wallet`

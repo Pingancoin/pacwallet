@@ -175,6 +175,10 @@ type MultiSigPreviewResult struct {
 	P2SHScript   string   `json:"p2sh_script"`
 }
 
+type ReceiveRequest struct {
+	Address string `json:"address"`
+}
+
 type upstreamFile struct {
 	ActiveID string            `json:"active_id"`
 	Profiles []UpstreamProfile `json:"profiles"`
@@ -433,6 +437,23 @@ func (s *Service) PubKeysFile() ([]byte, string, error) {
 	return []byte(b.String()), "pubkeys.txt", nil
 }
 
+func (s *Service) KeyByAddress(address string) (KeySummary, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	w, err := s.loadWalletLocked()
+	if err != nil {
+		return KeySummary{}, err
+	}
+	address = strings.TrimSpace(address)
+	for _, key := range w.Keys {
+		if key.Address == address {
+			return summarizeKey(key), nil
+		}
+	}
+	return KeySummary{}, fmt.Errorf("wallet address %q not found", address)
+}
+
 func (s *Service) RestoreWallet(req RestoreWalletRequest) (WalletSummary, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -523,6 +544,17 @@ func (s *Service) PreviewMultiSig(req MultiSigPreviewRequest) (MultiSigPreviewRe
 		RedeemScript: encodeHexString(script),
 		P2SHScript:   encodeHexString(p2shScript),
 	}, nil
+}
+
+func (s *Service) TransactionDetail(txHash string) (walletcore.TransactionDetail, error) {
+	s.mu.Lock()
+	w, err := s.loadWalletLocked()
+	rpcURL := s.rpcURL
+	s.mu.Unlock()
+	if err != nil {
+		return walletcore.TransactionDetail{}, err
+	}
+	return walletcore.FindTransaction(s.params, w, rpcURL, txHash)
 }
 
 func (s *Service) AddUpstream(req AddUpstreamRequest) (UpstreamSettings, error) {

@@ -474,6 +474,40 @@ tbody tr:last-child td {
   padding-bottom: 22px;
 }
 
+.receive-panel {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 18px;
+  padding: 0 22px;
+}
+
+.receive-qr-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.receive-qr {
+  width: min(100%, 220px);
+  aspect-ratio: 1;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 8px;
+}
+
+.receive-copy {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
 .detail-label {
   display: block;
   margin-bottom: 6px;
@@ -491,6 +525,10 @@ tbody tr:last-child td {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
   padding: 0 22px;
+}
+
+.history-toolbar {
+  padding-top: 0;
 }
 
 .key-card,
@@ -583,7 +621,8 @@ tbody tr:last-child td {
   .hero,
   .inline-form,
   .split,
-  .detail-grid {
+  .detail-grid,
+  .receive-panel {
     grid-template-columns: 1fr;
   }
 

@@ -1,0 +1,176 @@
+{{define "tx"}}
+{{template "head" .}}
+{{template "topbar" .}}
+{{$tx := .Transaction}}
+<main class="shell page">
+  <section class="hero wallet-hero">
+    <div class="hero-copy">
+      <p class="eyebrow">Transaction detail</p>
+      <h1>{{short $tx.TxHash}}</h1>
+      <p class="lede">Wallet-centric breakdown of the selected transaction, including inputs, outputs, confirmations, and net effect.</p>
+      <div class="hero-actions">
+        <a href="/#activity" class="ghost-button">Back to Activity</a>
+        <a href="/#receive" class="ghost-button">Back to Receive</a>
+      </div>
+    </div>
+    <div class="hero-side">
+      <div class="hero-stat">
+        <span>Status</span>
+        <strong>{{if $tx.Pending}}Pending{{else}}Confirmed{{end}}</strong>
+      </div>
+      <div class="hero-stat">
+        <span>Confirmations</span>
+        <strong>{{$tx.Confirmations}}</strong>
+      </div>
+      <div class="hero-stat">
+        <span>Net effect</span>
+        <strong>{{formatPAC $tx.Net}} PAC</strong>
+      </div>
+    </div>
+  </section>
+
+  <section class="dashboard-grid overview-grid">
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Summary</p>
+          <h2>Transaction overview</h2>
+          <p>High-level status and wallet impact for this transaction.</p>
+        </div>
+      </div>
+      <div class="detail-grid summary-grid">
+        <div>
+          <span class="detail-label">TxID</span>
+          <strong class="mono small">{{$tx.TxHash}}</strong>
+        </div>
+        <div>
+          <span class="detail-label">Height</span>
+          <strong>{{$tx.Height}}</strong>
+        </div>
+        <div>
+          <span class="detail-label">Received</span>
+          <strong>{{formatPAC $tx.Received}} PAC</strong>
+        </div>
+        <div>
+          <span class="detail-label">Sent</span>
+          <strong>{{formatPAC $tx.Sent}} PAC</strong>
+        </div>
+        <div>
+          <span class="detail-label">Coinbase</span>
+          <strong>{{if $tx.Coinbase}}Yes{{else}}No{{end}}</strong>
+        </div>
+        <div>
+          <span class="detail-label">Wallet addresses</span>
+          <strong class="mono small">{{range $i, $addr := $tx.Addresses}}{{if $i}}, {{end}}{{$addr}}{{end}}</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Wallet view</p>
+          <h2>Node context</h2>
+          <p>Current wallet RPC endpoint and node state when this view was loaded.</p>
+        </div>
+        <span class="meta-chip">{{if .Overview.Node.Online}}Online{{else}}Offline{{end}}</span>
+      </div>
+      <div class="detail-grid summary-grid">
+        <div>
+          <span class="detail-label">Endpoint</span>
+          <strong class="mono small">{{.Overview.Upstream.ActiveURL}}</strong>
+        </div>
+        <div>
+          <span class="detail-label">Best height</span>
+          <strong>{{.Overview.Node.BestHeight}}</strong>
+        </div>
+        <div>
+          <span class="detail-label">Best hash</span>
+          <strong class="mono small">{{.Overview.Node.BestHash}}</strong>
+        </div>
+        <div>
+          <span class="detail-label">Peers</span>
+          <strong>{{.Overview.Node.PeerCount}}</strong>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <section class="dashboard-grid">
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Inputs</p>
+          <h2>Previous outputs spent</h2>
+          <p>Inputs resolved from the wallet scan and known chain outputs.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Source</th>
+              <th>Address</th>
+              <th>Value</th>
+              <th>Wallet</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range $tx.Inputs}}
+            <tr>
+              <td class="mono small">{{short .PrevTxHash}}:{{.PrevVout}}</td>
+              <td class="mono small">{{.Address}}</td>
+              <td>{{formatPAC .Value}} PAC</td>
+              <td>{{if .WalletOwned}}Yes{{else}}No{{end}}</td>
+            </tr>
+            {{else}}
+            <tr>
+              <td colspan="4" class="empty">No inputs recorded for this transaction.</td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Outputs</p>
+          <h2>Created outputs</h2>
+          <p>Outputs created by the transaction, including wallet-owned destinations.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Vout</th>
+              <th>Address</th>
+              <th>Value</th>
+              <th>Wallet</th>
+              <th>Spent</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range $tx.Outputs}}
+            <tr>
+              <td>{{.Index}}</td>
+              <td class="mono small">{{.Address}}</td>
+              <td>{{formatPAC .Value}} PAC</td>
+              <td>{{if .WalletOwned}}Yes{{else}}No{{end}}</td>
+              <td>{{if .Spent}}Spent{{else}}Unspent{{end}}</td>
+            </tr>
+            {{else}}
+            <tr>
+              <td colspan="5" class="empty">No outputs recorded for this transaction.</td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+</main>
+{{template "footer" .}}
+{{end}}

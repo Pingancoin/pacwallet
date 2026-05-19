@@ -242,6 +242,59 @@ func TestServerMultisigPreviewAndHealth(t *testing.T) {
 	}
 }
 
+func TestServerReceiveQRAndTransactionDetail(t *testing.T) {
+	params := chaincfg.SimNetParams()
+	walletDir := t.TempDir()
+	sourceWallet, err := walletcore.Create(walletcore.Path(walletDir, params.Name), params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := walletcore.Save(walletcore.Path(walletDir, params.Name), sourceWallet); err != nil {
+		t.Fatal(err)
+	}
+	pkScript, err := address.DecodeAddressScript(params, sourceWallet.Keys[0].Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fakePACD := newFakePACDServer(hex.EncodeToString(pkScript))
+	defer fakePACD.Close()
+
+	svc := service.New(params, walletDir, fakePACD.URL)
+	server, err := web.New(svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(server.Handler())
+	defer ts.Close()
+
+	qrResp, err := http.Get(ts.URL + "/receive/qr/" + sourceWallet.Keys[0].Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if qrResp.StatusCode != http.StatusOK {
+		t.Fatalf("qr status = %d, want 200", qrResp.StatusCode)
+	}
+	if contentType := qrResp.Header.Get("Content-Type"); contentType != "image/png" {
+		t.Fatalf("qr content-type = %s, want image/png", contentType)
+	}
+	if data, err := io.ReadAll(qrResp.Body); err != nil || len(data) == 0 {
+		t.Fatalf("qr body read err=%v len=%d", err, len(data))
+	}
+	_ = qrResp.Body.Close()
+
+	txResp, err := http.Get(ts.URL + "/tx/0000000000000000000000000000000000000000000000000000000000000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	txBody := mustReadString(t, txResp)
+	if !strings.Contains(txBody, "Transaction detail") {
+		t.Fatalf("tx detail page missing heading: %s", txBody)
+	}
+	if !strings.Contains(txBody, "Created outputs") {
+		t.Fatalf("tx detail page missing outputs section: %s", txBody)
+	}
+}
+
 func newFakePACDServer(pkScriptHex string) *httptest.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/getnetworkinfo", func(w http.ResponseWriter, r *http.Request) {

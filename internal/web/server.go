@@ -4,6 +4,7 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"html/template"
 	"io"
 	"io/fs"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/Pingancoin/pacwallet/internal/service"
 	"github.com/Pingancoin/pacwallet/internal/wallet"
+	"github.com/skip2/go-qrcode"
 )
 
 //go:embed templates/*.html static/* static/branding/*
@@ -32,9 +34,17 @@ type ViewData struct {
 	Overview         service.Overview
 	Notice           string
 	Error            string
+	DisplayedHistory []wallet.HistoryEntry
+	HistoryFilter    string
+	HistorySearch    string
+	HistoryCount     int
+	SelectedKey      *service.KeySummary
+	ReceiveURI       string
+	PubKeysExport    string
 	MultiSigPreview  *service.MultiSigPreviewResult
 	MultiSigPubKeys  string
 	MultiSigRequired int
+	Transaction      *wallet.TransactionDetail
 }
 
 func New(svc *service.Service) (*Server, error) {
@@ -70,6 +80,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/download/wallet", s.handleWalletDownload)
 	s.mux.HandleFunc("/download/pubkeys", s.handlePubKeysDownload)
 	s.mux.HandleFunc("/download/backup/", s.handleBackupDownload)
+	s.mux.HandleFunc("/receive/qr/", s.handleReceiveQR)
+	s.mux.HandleFunc("/tx/", s.handleTransactionDetail)
 	s.mux.HandleFunc("/wallet/create", s.handleWalletCreateForm)
 	s.mux.HandleFunc("/wallet/encrypt", s.handleWalletEncryptForm)
 	s.mux.HandleFunc("/wallet/changepassphrase", s.handleWalletChangePassphraseForm)
@@ -86,6 +98,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/wallet/encrypt", s.handleWalletEncryptAPI)
 	s.mux.HandleFunc("/api/wallet/changepassphrase", s.handleWalletChangePassphraseAPI)
 	s.mux.HandleFunc("/api/wallet/restore", s.handleWalletRestoreAPI)
+	s.mux.HandleFunc("/api/tx/", s.handleTransactionDetailAPI)
 	s.mux.HandleFunc("/api/upstreams", s.handleUpstreamAddAPI)
 	s.mux.HandleFunc("/api/upstreams/select", s.handleUpstreamSelectAPI)
 	s.mux.HandleFunc("/api/addresses", s.handleAddressCreateAPI)
@@ -125,10 +138,13 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 				Path:    s.service.WalletPath(),
 				Network: "",
 			},
-		}, "", err.Error(), nil, "", 3)
+		}, "", err.Error(), nil, "", 3, "", "", nil)
 		return
 	}
-	s.renderHome(w, http.StatusOK, overview, r.URL.Query().Get("notice"), r.URL.Query().Get("error"), nil, "", 3)
+	filter := strings.TrimSpace(r.URL.Query().Get("history"))
+	search := strings.TrimSpace(r.URL.Query().Get("q"))
+	selectedKey := selectReceiveKey(overview.Wallet.Keys, strings.TrimSpace(r.URL.Query().Get("receive")))
+	s.renderHome(w, http.StatusOK, overview, r.URL.Query().Get("notice"), r.URL.Query().Get("error"), nil, "", 3, filter, search, selectedKey)
 }
 
 func (s *Server) handleWalletDownload(w http.ResponseWriter, r *http.Request) {
@@ -169,6 +185,38 @@ func (s *Server) handlePubKeysDownload(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
+}
+
+func (s *Server) handleReceiveQR(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	address := strings.TrimSpace(strings.TrimPrefix(r.URL.Path, "/receive/qr/"))
+	if address == "" {
+		http.NotFound(w, r)
+		return
+	}
+	key, err := s.service.KeyByAddress(address)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	size := 240
+	if raw := strings.TrimSpace(r.URL.Query().Get("size")); raw != "" {
+		if parsed, parseErr := strconv.Atoi(raw); parseErr == nil && parsed >= 96 && parsed <= 512 {
+			size = parsed
+		}
+	}
+	png, err := qrcode.Encode(receiveURI(key.Address), qrcode.Medium, size)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(png)
 }
 
 func (s *Server) handleBackupDownload(w http.ResponseWriter, r *http.Request) {
@@ -396,7 +444,10 @@ func (s *Server) handleMultiSigPreviewForm(w http.ResponseWriter, r *http.Reques
 		s.renderMultiSigError(w, http.StatusBadGateway, pubKeysText, required, loadErr)
 		return
 	}
-	s.renderHome(w, http.StatusOK, overview, "", "", &preview, pubKeysText, required)
+	filter := strings.TrimSpace(r.URL.Query().Get("history"))
+	search := strings.TrimSpace(r.URL.Query().Get("q"))
+	selectedKey := selectReceiveKey(overview.Wallet.Keys, strings.TrimSpace(r.URL.Query().Get("receive")))
+	s.renderHome(w, http.StatusOK, overview, "", "", &preview, pubKeysText, required, filter, search, selectedKey)
 }
 
 func (s *Server) handleSendForm(w http.ResponseWriter, r *http.Request) {
@@ -420,6 +471,29 @@ func (s *Server) handleSendForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.redirectNotice(w, r, "Transaction sent: "+result.TxID)
+}
+
+func (s *Server) handleTransactionDetail(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	txHash := strings.TrimSpace(strings.TrimPrefix(r.URL.Path, "/tx/"))
+	if txHash == "" {
+		http.NotFound(w, r)
+		return
+	}
+	overview, err := s.service.Overview()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	txDetail, err := s.service.TransactionDetail(txHash)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	s.renderTransaction(w, http.StatusOK, overview, txDetail)
 }
 
 func (s *Server) handleOverviewAPI(w http.ResponseWriter, r *http.Request) {
@@ -515,6 +589,24 @@ func (s *Server) handleWalletRestoreAPI(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusCreated, result)
+}
+
+func (s *Server) handleTransactionDetailAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	txHash := strings.TrimSpace(strings.TrimPrefix(r.URL.Path, "/api/tx/"))
+	if txHash == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "transaction hash is required"})
+		return
+	}
+	result, err := s.service.TransactionDetail(txHash)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) handleAddressCreateAPI(w http.ResponseWriter, r *http.Request) {
@@ -637,7 +729,11 @@ func (s *Server) handleMultiSigPreviewAPI(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (s *Server) renderHome(w http.ResponseWriter, status int, overview service.Overview, notice string, errText string, preview *service.MultiSigPreviewResult, pubKeysText string, required int) {
+func (s *Server) renderHome(w http.ResponseWriter, status int, overview service.Overview, notice string, errText string, preview *service.MultiSigPreviewResult, pubKeysText string, required int, historyFilter string, historySearch string, selectedKey *service.KeySummary) {
+	displayedHistory := filterHistory(overview.History, historyFilter, historySearch)
+	if selectedKey == nil {
+		selectedKey = selectReceiveKey(overview.Wallet.Keys, "")
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	_ = s.templates.ExecuteTemplate(w, "home", ViewData{
@@ -646,9 +742,27 @@ func (s *Server) renderHome(w http.ResponseWriter, status int, overview service.
 		Overview:         overview,
 		Notice:           notice,
 		Error:            errText,
+		DisplayedHistory: displayedHistory,
+		HistoryFilter:    normalizeHistoryFilter(historyFilter),
+		HistorySearch:    historySearch,
+		HistoryCount:     len(displayedHistory),
+		SelectedKey:      selectedKey,
+		ReceiveURI:       receiveURIFromKey(selectedKey),
+		PubKeysExport:    buildPubKeysExport(overview.Wallet.Keys),
 		MultiSigPreview:  preview,
 		MultiSigPubKeys:  pubKeysText,
 		MultiSigRequired: required,
+	})
+}
+
+func (s *Server) renderTransaction(w http.ResponseWriter, status int, overview service.Overview, txDetail wallet.TransactionDetail) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	_ = s.templates.ExecuteTemplate(w, "tx", ViewData{
+		Title:       "Transaction " + short(txDetail.TxHash),
+		Now:         time.Now().UTC(),
+		Overview:    overview,
+		Transaction: &txDetail,
 	})
 }
 
@@ -661,7 +775,7 @@ func (s *Server) renderFormError(w http.ResponseWriter, status int, prefix strin
 			},
 		}
 	}
-	s.renderHome(w, status, overview, "", prefix+": "+err.Error(), nil, "", 3)
+	s.renderHome(w, status, overview, "", prefix+": "+err.Error(), nil, "", 3, "", "", nil)
 }
 
 func (s *Server) renderMultiSigError(w http.ResponseWriter, status int, pubKeysText string, required int, err error) {
@@ -673,7 +787,7 @@ func (s *Server) renderMultiSigError(w http.ResponseWriter, status int, pubKeysT
 			},
 		}
 	}
-	s.renderHome(w, status, overview, "", "multisig preview failed: "+err.Error(), nil, pubKeysText, required)
+	s.renderHome(w, status, overview, "", "multisig preview failed: "+err.Error(), nil, pubKeysText, required, "", "", nil)
 }
 
 func (s *Server) redirectNotice(w http.ResponseWriter, r *http.Request, notice string) {
@@ -692,6 +806,93 @@ func short(value string) string {
 		return value
 	}
 	return value[:8] + "..." + value[len(value)-8:]
+}
+
+func selectReceiveKey(keys []service.KeySummary, requested string) *service.KeySummary {
+	if len(keys) == 0 {
+		return nil
+	}
+	requested = strings.TrimSpace(requested)
+	if requested != "" {
+		for i := range keys {
+			if keys[i].Address == requested {
+				key := keys[i]
+				return &key
+			}
+		}
+	}
+	key := keys[0]
+	return &key
+}
+
+func receiveURI(address string) string {
+	return "pingancoin:" + strings.TrimSpace(address)
+}
+
+func receiveURIFromKey(key *service.KeySummary) string {
+	if key == nil {
+		return ""
+	}
+	return receiveURI(key.Address)
+}
+
+func normalizeHistoryFilter(filter string) string {
+	switch strings.ToLower(strings.TrimSpace(filter)) {
+	case "incoming", "outgoing", "pending", "coinbase":
+		return strings.ToLower(strings.TrimSpace(filter))
+	default:
+		return "all"
+	}
+}
+
+func filterHistory(entries []wallet.HistoryEntry, filter string, search string) []wallet.HistoryEntry {
+	filter = normalizeHistoryFilter(filter)
+	search = strings.ToLower(strings.TrimSpace(search))
+	filtered := make([]wallet.HistoryEntry, 0, len(entries))
+	for _, entry := range entries {
+		switch filter {
+		case "incoming":
+			if entry.Net <= 0 {
+				continue
+			}
+		case "outgoing":
+			if entry.Net >= 0 {
+				continue
+			}
+		case "pending":
+			if !entry.Pending {
+				continue
+			}
+		case "coinbase":
+			if !entry.Coinbase {
+				continue
+			}
+		}
+		if search != "" {
+			match := strings.Contains(strings.ToLower(entry.TxHash), search)
+			if !match {
+				for _, addr := range entry.Addresses {
+					if strings.Contains(strings.ToLower(addr), search) {
+						match = true
+						break
+					}
+				}
+			}
+			if !match {
+				continue
+			}
+		}
+		filtered = append(filtered, entry)
+	}
+	return filtered
+}
+
+func buildPubKeysExport(keys []service.KeySummary) string {
+	var b strings.Builder
+	for _, key := range keys {
+		fmt.Fprintf(&b, "%s %s %s\n", strings.TrimSpace(key.Label), key.Address, key.PubKeyHex)
+	}
+	return b.String()
 }
 
 func splitLines(value string) []string {

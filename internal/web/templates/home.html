@@ -212,6 +212,28 @@
         <span class="meta-chip">{{$page.Wallet.KeyCount}} keys</span>
       </div>
       <div class="stack">
+        {{if .SelectedKey}}
+        <div class="receive-panel">
+          <div class="receive-qr-card">
+            <img class="receive-qr" src="/receive/qr/{{.SelectedKey.Address}}?size=240" alt="Receive QR for {{.SelectedKey.Address}}">
+          </div>
+          <div class="receive-copy">
+            <div>
+              <span class="detail-label">Selected receive address</span>
+              <strong class="mono small">{{.SelectedKey.Address}}</strong>
+            </div>
+            <div>
+              <span class="detail-label">Signer label</span>
+              <strong>{{if .SelectedKey.Label}}{{.SelectedKey.Label}}{{else}}default{{end}}</strong>
+            </div>
+            <div>
+              <span class="detail-label">Receive URI</span>
+              <strong class="mono small">{{.ReceiveURI}}</strong>
+            </div>
+            <p class="lede compact">Share the address or QR code directly. Use the public key below when collecting 3-of-5 signer data.</p>
+          </div>
+        </div>
+        {{end}}
         <form class="inline-form" method="post" action="/addresses/create">
           <label>
             <span>Label</span>
@@ -239,7 +261,7 @@
               {{range $page.Wallet.Keys}}
               <tr>
                 <td>{{.Label}}</td>
-                <td class="mono">{{.Address}}</td>
+                <td class="mono"><a href="/?receive={{.Address}}#receive">{{.Address}}</a></td>
                 <td class="mono small">{{.PubKeyHex}}</td>
                 <td>{{.CreatedAt.Format "2006-01-02 15:04:05"}}</td>
               </tr>
@@ -392,7 +414,25 @@
           <h2>Transaction history</h2>
           <p>Recent wallet movements, including pending entries from the mempool.</p>
         </div>
+        <span class="meta-chip">{{.HistoryCount}} shown</span>
       </div>
+      <form class="inline-form history-toolbar" method="get" action="/#activity">
+        <label>
+          <span>Filter</span>
+          <select name="history">
+            <option value="all" {{if eq .HistoryFilter "all"}}selected{{end}}>All transactions</option>
+            <option value="incoming" {{if eq .HistoryFilter "incoming"}}selected{{end}}>Incoming</option>
+            <option value="outgoing" {{if eq .HistoryFilter "outgoing"}}selected{{end}}>Outgoing</option>
+            <option value="pending" {{if eq .HistoryFilter "pending"}}selected{{end}}>Pending</option>
+            <option value="coinbase" {{if eq .HistoryFilter "coinbase"}}selected{{end}}>Coinbase</option>
+          </select>
+        </label>
+        <label>
+          <span>Search by txid or address</span>
+          <input type="text" name="q" value="{{.HistorySearch}}" placeholder="0000... or P...">
+        </label>
+        <button type="submit">Apply</button>
+      </form>
       <div class="table-wrap">
         <table>
           <thead>
@@ -407,9 +447,9 @@
             </tr>
           </thead>
           <tbody>
-            {{range $page.History}}
+            {{range .DisplayedHistory}}
             <tr>
-              <td class="mono small">{{.TxHash}}</td>
+              <td class="mono small"><a href="/tx/{{.TxHash}}">{{.TxHash}}</a></td>
               <td>{{.Height}}</td>
               <td>{{if .Pending}}Pending{{else}}Confirmed{{end}}</td>
               <td>{{formatPAC .Received}} PAC</td>
@@ -439,6 +479,13 @@
         <a class="secondary-link" href="/download/pubkeys">Download pubkeys.txt</a>
       </div>
       <div class="stack">
+        <div class="stack section-pad">
+          <div>
+            <span class="detail-label">Local signer export</span>
+            <textarea rows="5" readonly>{{.PubKeysExport}}</textarea>
+          </div>
+          <p class="lede compact">This is the exact label/address/pubkey packet you can send to the other signers before generating the final 3-of-5 project address.</p>
+        </div>
         <div class="key-list">
           {{range $page.Wallet.Keys}}
           <div class="key-card">

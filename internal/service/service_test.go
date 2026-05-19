@@ -387,6 +387,45 @@ func TestServicePreviewMultiSig(t *testing.T) {
 	}
 }
 
+func TestServiceKeyLookupAndTransactionDetail(t *testing.T) {
+	params := chaincfg.SimNetParams()
+	walletDir := t.TempDir()
+	w, err := walletcore.Create(walletcore.Path(walletDir, params.Name), params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := walletcore.Save(walletcore.Path(walletDir, params.Name), w); err != nil {
+		t.Fatal(err)
+	}
+	pkScript, err := address.DecodeAddressScript(params, w.Keys[0].Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	server := newFakePACDServer(hex.EncodeToString(pkScript))
+	defer server.Close()
+
+	svc := service.New(params, walletDir, server.URL)
+	key, err := svc.KeyByAddress(w.Keys[0].Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if key.Address != w.Keys[0].Address {
+		t.Fatalf("key address = %s, want %s", key.Address, w.Keys[0].Address)
+	}
+
+	txDetail, err := svc.TransactionDetail("0000000000000000000000000000000000000000000000000000000000000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if txDetail.TxHash == "" || len(txDetail.Outputs) == 0 {
+		t.Fatalf("transaction detail not populated: %+v", txDetail)
+	}
+	if txDetail.Received != 200_000_000 {
+		t.Fatalf("received = %d, want 200000000", txDetail.Received)
+	}
+}
+
 type fakePACD struct {
 	mu          sync.RWMutex
 	pkScriptHex string
