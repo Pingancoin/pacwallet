@@ -1,9 +1,15 @@
 #include "ReceivePage.h"
 
+#include <QApplication>
+#include <QClipboard>
+#include <QFile>
+#include <QFileDialog>
 #include <QFormLayout>
 #include <QGridLayout>
 #include <QGroupBox>
+#include <QMessageBox>
 #include <QPixmap>
+#include <QHBoxLayout>
 #include <QVBoxLayout>
 
 namespace pacqt {
@@ -25,6 +31,15 @@ ReceivePage::ReceivePage(QWidget *parent)
     m_pubKeyLabel->setWordWrap(true);
     m_uriLabel = new QLabel(this);
     m_uriLabel->setWordWrap(true);
+    auto *copyAddressButton = new QPushButton(QStringLiteral("Copy Address"), this);
+    auto *copyPubKeyButton = new QPushButton(QStringLiteral("Copy Public Key"), this);
+    auto *copyUriButton = new QPushButton(QStringLiteral("Copy URI"), this);
+    auto *saveQrButton = new QPushButton(QStringLiteral("Save QR PNG"), this);
+    auto *buttonRow = new QHBoxLayout();
+    buttonRow->addWidget(copyAddressButton);
+    buttonRow->addWidget(copyPubKeyButton);
+    buttonRow->addWidget(copyUriButton);
+    buttonRow->addWidget(saveQrButton);
 
     topLayout->addWidget(new QLabel(QStringLiteral("Address")), 0, 0);
     topLayout->addWidget(m_addressCombo, 0, 1);
@@ -33,6 +48,7 @@ ReceivePage::ReceivePage(QWidget *parent)
     topLayout->addWidget(m_pubKeyLabel, 2, 1);
     topLayout->addWidget(new QLabel(QStringLiteral("Receive URI")), 3, 1);
     topLayout->addWidget(m_uriLabel, 4, 1);
+    topLayout->addLayout(buttonRow, 5, 0, 1, 2);
 
     auto *createBox = new QGroupBox(QStringLiteral("Create New Address"), this);
     auto *form = new QFormLayout(createBox);
@@ -53,6 +69,40 @@ ReceivePage::ReceivePage(QWidget *parent)
     });
     connect(m_createButton, &QPushButton::clicked, this, [this]() {
         emit createAddressRequested(m_labelEdit->text(), m_passphraseEdit->text());
+    });
+    connect(copyAddressButton, &QPushButton::clicked, this, [this]() {
+        if (!currentAddress().isEmpty()) {
+            QApplication::clipboard()->setText(currentAddress());
+        }
+    });
+    connect(copyPubKeyButton, &QPushButton::clicked, this, [this]() {
+        if (!m_pubKeyLabel->text().isEmpty()) {
+            QApplication::clipboard()->setText(m_pubKeyLabel->text());
+        }
+    });
+    connect(copyUriButton, &QPushButton::clicked, this, [this]() {
+        if (!m_uriLabel->text().isEmpty()) {
+            QApplication::clipboard()->setText(m_uriLabel->text());
+        }
+    });
+    connect(saveQrButton, &QPushButton::clicked, this, [this]() {
+        if (m_qrPngData.isEmpty() || currentAddress().isEmpty()) {
+            QMessageBox::information(this, QStringLiteral("Pingancoin Wallet"), QStringLiteral("No QR image is available yet for the selected address."));
+            return;
+        }
+        const QString path = QFileDialog::getSaveFileName(this,
+            QStringLiteral("Save Receive QR"),
+            QStringLiteral("%1.png").arg(currentAddress()),
+            QStringLiteral("PNG Files (*.png)"));
+        if (path.isEmpty()) {
+            return;
+        }
+        QFile file(path);
+        if (!file.open(QIODevice::WriteOnly)) {
+            QMessageBox::warning(this, QStringLiteral("Pingancoin Wallet"), QStringLiteral("Could not write QR image to %1").arg(path));
+            return;
+        }
+        file.write(m_qrPngData);
     });
 }
 
@@ -86,6 +136,7 @@ void ReceivePage::setQrImage(const QString &address, const QByteArray &pngData)
     if (address != currentAddress()) {
         return;
     }
+    m_qrPngData = pngData;
     QPixmap pixmap;
     pixmap.loadFromData(pngData, "PNG");
     m_qrLabel->setPixmap(pixmap.scaled(220, 220, Qt::KeepAspectRatio, Qt::SmoothTransformation));

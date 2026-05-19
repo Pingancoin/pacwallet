@@ -40,6 +40,8 @@ signals:
     void selectUpstreamRequested(const QString &id);
 
 private:
+    QString m_walletPath;
+    QString m_backupDir;
     QLabel *m_walletPathLabel;
     QLabel *m_walletStateLabel;
     QLabel *m_nodeStatusLabel;

@@ -15,6 +15,8 @@
 #include <QStackedWidget>
 #include <QTimer>
 
+class QCloseEvent;
+
 namespace pacqt {
 
 class MainWindow : public QMainWindow
@@ -23,6 +25,9 @@ class MainWindow : public QMainWindow
 
 public:
     explicit MainWindow(QWidget *parent = nullptr);
+
+protected:
+    void closeEvent(QCloseEvent *event) override;
 
 private:
     void buildUi();

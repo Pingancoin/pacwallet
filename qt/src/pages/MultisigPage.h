@@ -26,7 +26,9 @@ private:
     QTextEdit *m_pubKeysEdit;
     QSpinBox *m_requiredSpin;
     QLabel *m_addressLabel;
+    QLabel *m_scriptHashLabel;
     QLabel *m_redeemLabel;
+    QLabel *m_p2shScriptLabel;
 };
 
 } // namespace pacqt

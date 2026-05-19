@@ -1,10 +1,12 @@
 #include "SettingsPage.h"
 
+#include <QDesktopServices>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QUrl>
 #include <QVBoxLayout>
 
 namespace pacqt {
@@ -26,10 +28,14 @@ SettingsPage::SettingsPage(QWidget *parent)
     m_nodeStatusLabel = new QLabel(this);
     m_activeUpstreamLabel = new QLabel(this);
     m_activeUpstreamLabel->setWordWrap(true);
+    auto *openWalletPathButton = new QPushButton(QStringLiteral("Open Wallet Location"), this);
+    auto *openBackupPathButton = new QPushButton(QStringLiteral("Open Backup Folder"), this);
     statusLayout->addRow(QStringLiteral("Wallet Path"), m_walletPathLabel);
     statusLayout->addRow(QStringLiteral("Wallet State"), m_walletStateLabel);
     statusLayout->addRow(QStringLiteral("Node"), m_nodeStatusLabel);
     statusLayout->addRow(QStringLiteral("Active Upstream"), m_activeUpstreamLabel);
+    statusLayout->addRow(QString(), openWalletPathButton);
+    statusLayout->addRow(QString(), openBackupPathButton);
 
     auto *upstreamBox = new QGroupBox(QStringLiteral("RPC Upstreams"), this);
     auto *upstreamLayout = new QFormLayout(upstreamBox);
@@ -140,6 +146,16 @@ SettingsPage::SettingsPage(QWidget *parent)
     connect(importButton, &QPushButton::clicked, this, [this]() {
         emit importPrivateKeyRequested(m_importLabelEdit->text(), m_importKeyEdit->text(), m_importPassphraseEdit->text());
     });
+    connect(openWalletPathButton, &QPushButton::clicked, this, [this]() {
+        if (!m_walletPath.isEmpty()) {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(m_walletPath));
+        }
+    });
+    connect(openBackupPathButton, &QPushButton::clicked, this, [this]() {
+        if (!m_backupDir.isEmpty()) {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(m_backupDir));
+        }
+    });
 }
 
 void SettingsPage::setBackendUrl(const QString &url)
@@ -159,6 +175,8 @@ void SettingsPage::setBackendArguments(const QStringList &arguments)
 
 void SettingsPage::setOverview(const pacqt::Overview &overview)
 {
+    m_walletPath = overview.wallet.path;
+    m_backupDir = overview.wallet.backupDir;
     m_walletPathLabel->setText(overview.wallet.path);
     m_walletStateLabel->setText(overview.wallet.exists
             ? (overview.wallet.encrypted ? QStringLiteral("Encrypted") : QStringLiteral("Ready"))

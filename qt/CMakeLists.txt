@@ -14,6 +14,7 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets Network)
 qt_standard_project_setup()
 
 qt_add_executable(pacwallet-qt
+    MACOSX_BUNDLE
     src/main.cpp
     src/ApiClient.cpp
     src/MainWindow.cpp
@@ -38,4 +39,13 @@ target_link_libraries(pacwallet-qt PRIVATE
 
 if(WIN32)
     set_target_properties(pacwallet-qt PROPERTIES WIN32_EXECUTABLE TRUE)
+endif()
+
+if(APPLE)
+    set_target_properties(pacwallet-qt PROPERTIES
+        MACOSX_BUNDLE_BUNDLE_NAME "Pingancoin Wallet"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "org.pingancoin.wallet"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+    )
 endif()

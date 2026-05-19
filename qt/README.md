@@ -20,11 +20,13 @@ The initial Qt app includes:
 
 - native main window and sidebar navigation
 - overview dashboard
-- receive screen with address list and QR loading
-- send form
-- transaction list and detail inspector
-- multisig preview screen
-- settings for backend URL and local service launch parameters
+- first-run create / restore flow
+- overview dashboard with wallet state and UTXO inventory
+- receive screen with address list, QR loading, copy helpers, and QR export
+- send form with spendable balance display, max helper, change-address selection, and native confirmation prompt
+- transaction list with filters, search, and detail inspector
+- multisig preview screen with local signer export and result export
+- settings for backend URL, local service launch, upstream switching, encryption, passphrase changes, private-key import, backups, and wallet path shortcuts
 
 ## Build
 
@@ -38,8 +40,8 @@ You need a local Qt 6 toolchain with:
 Example build:
 
 ```bash
-cmake -S qt -B qt/build
-cmake --build qt/build
+qt-cmake -S qt -B qt/build
+cmake --build qt/build -j2
 ```
 
 ## Runtime Model
@@ -54,3 +56,18 @@ The app talks to the existing wallet backend endpoints:
 - `GET /receive/qr/<address>`
 
 It can also launch a local `pacwallet serve` process through `QProcess` when configured.
+
+## macOS Native Release
+
+On macOS with Qt installed:
+
+```bash
+VERSION=0.3.0-rc1 ./scripts/build-macos-qt-release.sh
+```
+
+That produces:
+
+- a self-contained `pacwallet-qt.app`
+- bundled Qt frameworks via `macdeployqt`
+- `release.json`
+- a zip archive under `dist/`

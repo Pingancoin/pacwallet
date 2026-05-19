@@ -3,10 +3,10 @@
 #include "../Models.h"
 
 #include <QComboBox>
+#include <QByteArray>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
-#include <QTextEdit>
 #include <QWidget>
 
 namespace pacqt {
@@ -29,6 +29,7 @@ private:
     QString currentAddress() const;
 
     QVector<KeySummary> m_keys;
+    QByteArray m_qrPngData;
     QComboBox *m_addressCombo;
     QLabel *m_qrLabel;
     QLabel *m_pubKeyLabel;

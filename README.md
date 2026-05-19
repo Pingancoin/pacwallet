@@ -15,6 +15,7 @@ It now includes:
 - a fuller desktop-wallet surface modeled after the shape of Bitcoin-style local wallets
 - a desktop launcher aimed at Windows app-window usage through Edge or Chrome
 - a new native `C++/Qt` desktop wallet project under `qt/`
+- a native macOS `.app` release path for the Qt wallet
 - upstream RPC endpoint profiles with local-first defaults
 - a generated branding/icon set under `assets/branding/pingancoin`
 
@@ -129,7 +130,21 @@ The first native Qt project scaffold lives in:
 - [qt/CMakeLists.txt](/Users/fanye/Documents/pacwallet/qt/CMakeLists.txt)
 - [qt/README.md](/Users/fanye/Documents/pacwallet/qt/README.md)
 
-This path is intended to replace the browser-hosted desktop shell over time with a real native wallet UI.
+This path is now the primary native-wallet direction, with:
+
+- first-run create / restore flow
+- overview with wallet state and UTXOs
+- receive copy/export actions
+- send confirmation flow
+- filtered history and tx drill-down
+- multisig preview and export
+- security, backup, import, and upstream controls in settings
+
+For macOS native packaging:
+
+```bash
+VERSION=0.3.0-rc1 ./scripts/build-macos-qt-release.sh
+```
 
 ## Security Status
 

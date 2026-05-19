@@ -1,10 +1,10 @@
 #include "MainWindow.h"
 
 #include <QApplication>
+#include <QCloseEvent>
 #include <QHBoxLayout>
 #include <QMessageBox>
 #include <QSettings>
-#include <QSplitter>
 #include <QStatusBar>
 #include <QWidget>
 
@@ -21,6 +21,7 @@ MainWindow::MainWindow(QWidget *parent)
         setWalletAvailable(overview.wallet.exists);
         m_overviewPage->setOverview(overview);
         m_receivePage->setOverview(overview);
+        m_sendPage->setOverview(overview);
         m_transactionsPage->setOverview(overview);
         m_multisigPage->setOverview(overview);
         m_settingsPage->setOverview(overview);
@@ -204,6 +205,7 @@ void MainWindow::loadSettings()
     m_settingsPage->setBackendUrl(backendUrl);
     m_settingsPage->setBackendProgram(backendProgram);
     m_settingsPage->setBackendArguments(backendArguments);
+    restoreGeometry(settings.value(QStringLiteral("window/geometry")).toByteArray());
 }
 
 void MainWindow::saveSettings() const
@@ -212,6 +214,13 @@ void MainWindow::saveSettings() const
     settings.setValue(QStringLiteral("backend/url"), m_api.baseUrl().toString());
     settings.setValue(QStringLiteral("backend/program"), m_service.program());
     settings.setValue(QStringLiteral("backend/arguments"), m_service.arguments());
+    settings.setValue(QStringLiteral("window/geometry"), geometry().isValid() ? saveGeometry() : QByteArray());
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    saveSettings();
+    QMainWindow::closeEvent(event);
 }
 
 } // namespace pacqt
