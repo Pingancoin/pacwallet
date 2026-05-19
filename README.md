@@ -65,6 +65,7 @@ Desktop launcher polish:
 - `pacwallet-desktop --upstreamstemplate <path>` imports endpoint presets before the UI opens
 - the Windows release bundle now includes `pacwallet-desktop.json`, `release.json`, and `upstreams.mainnet.template.json`
 - the first-run UI now leads with node endpoint selection before wallet create/restore
+- the Windows installer keeps app binaries under the user program directory and the desktop config under `%AppData%\Pingancoin Wallet`
 
 ## Windows Desktop Build
 
@@ -93,6 +94,7 @@ That release directory now includes:
 - a machine-readable release manifest
 - a generated `branding/` directory with app and website icon assets
 - an Inno Setup installer template and signing helper scripts
+- Windows-native `build-installer.bat` and `sign-release.bat` helpers
 - a zip archive when `ditto` is available
 
 ## Security Status

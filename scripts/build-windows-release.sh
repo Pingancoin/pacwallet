@@ -30,6 +30,46 @@ cp "$ROOT/packaging/windows/pacwallet-installer.iss" "$OUT_DIR/packaging/windows
 cp "$ROOT/scripts/build-windows-installer.sh" "$OUT_DIR/build-windows-installer.sh"
 cp "$ROOT/scripts/sign-windows-release.sh" "$OUT_DIR/sign-windows-release.sh"
 
+cat >"$OUT_DIR/build-installer.bat" <<'EOF'
+@echo off
+setlocal
+set RELEASE_DIR=%~dp0
+set VERSION=%VERSION%
+if "%VERSION%"=="" set VERSION=0.1.0-dev
+
+if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" (
+  "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" /DMyAppVersion=%VERSION% /DSourceReleaseDir="%RELEASE_DIR:~0,-1%" "%~dp0packaging\windows\pacwallet-installer.iss"
+  exit /b %ERRORLEVEL%
+)
+
+if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" (
+  "%ProgramFiles%\Inno Setup 6\ISCC.exe" /DMyAppVersion=%VERSION% /DSourceReleaseDir="%RELEASE_DIR:~0,-1%" "%~dp0packaging\windows\pacwallet-installer.iss"
+  exit /b %ERRORLEVEL%
+)
+
+echo Inno Setup 6 not found. Install it, then rerun this script.
+exit /b 1
+EOF
+
+cat >"$OUT_DIR/sign-release.bat" <<'EOF'
+@echo off
+setlocal
+if "%SIGN_PFX_PATH%"=="" (
+  echo Set SIGN_PFX_PATH to your code signing .pfx file.
+  exit /b 1
+)
+if "%SIGN_PFX_PASSWORD%"=="" (
+  echo Set SIGN_PFX_PASSWORD to your code signing password.
+  exit /b 1
+)
+
+for %%F in ("%~dp0*.exe" "%~dp0*.msi") do (
+  if exist "%%~fF" (
+    signtool sign /f "%SIGN_PFX_PATH%" /p "%SIGN_PFX_PASSWORD%" /tr http://timestamp.digicert.com /td sha256 /fd sha256 "%%~fF"
+  )
+)
+EOF
+
 cat >"$OUT_DIR/pacwallet-desktop.json" <<'EOF'
 {
   "network": "mainnet",
@@ -90,6 +130,8 @@ cat >"$OUT_DIR/release.json" <<EOF
     "packaging/windows/pacwallet-installer.iss",
     "build-windows-installer.sh",
     "sign-windows-release.sh",
+    "build-installer.bat",
+    "sign-release.bat",
     "run-pacwallet-desktop.bat",
     "run-pacwallet-web.bat",
     "WINDOWS_RELEASE_NOTES.txt",
@@ -138,6 +180,8 @@ Files:
 - packaging\windows\pacwallet-installer.iss: installer template for Inno Setup
 - build-windows-installer.sh: helper for compiling the installer on a Windows build box
 - sign-windows-release.sh: helper for code signing release binaries later
+- build-installer.bat: Windows-native installer build helper
+- sign-release.bat: Windows-native signing helper for exe and installer files
 - run-pacwallet-desktop.bat: convenience launcher for desktop mode
 - run-pacwallet-web.bat: convenience launcher for browser-hosted mode
 
@@ -147,7 +191,7 @@ Recommended setup:
 3. Double-click run-pacwallet-desktop.bat.
 4. The desktop launcher imports upstreams.mainnet.template.json automatically on first run.
 5. On first run, create or restore wallet.json.
-6. Build the installer from packaging\windows\pacwallet-installer.iss on a Windows packaging machine.
+6. Run build-installer.bat on a Windows packaging machine with Inno Setup 6 installed.
 7. Sign the exe and installer with your code-signing certificate.
 
 Environment overrides:

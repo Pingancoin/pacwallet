@@ -9,7 +9,7 @@ if [[ ! -d "$RELEASE_DIR" ]]; then
   exit 1
 fi
 
-mapfile -t TARGETS < <(find "$RELEASE_DIR" -maxdepth 1 -type f \( -name '*.exe' -o -name '*.msi' \) | sort)
+mapfile -t TARGETS < <(find "$RELEASE_DIR" -maxdepth 1 -type f \( -name '*.exe' -o -name '*.msi' -o -name '*.msix' -o -name '*.appx' \) | sort)
 if [[ ${#TARGETS[@]} -eq 0 ]]; then
   echo "no signable targets found in $RELEASE_DIR" >&2
   exit 1
@@ -21,6 +21,8 @@ if command -v osslsigncode >/dev/null 2>&1; then
   for target in "${TARGETS[@]}"; do
     signed="${target%.exe}-signed.exe"
     signed="${signed%.msi}-signed.msi"
+    signed="${signed%.msix}-signed.msix"
+    signed="${signed%.appx}-signed.appx"
     osslsigncode sign \
       -pkcs12 "$SIGN_PFX_PATH" \
       -pass "$SIGN_PFX_PASSWORD" \
@@ -46,4 +48,7 @@ If you use osslsigncode later:
   SIGN_PFX_PATH=/path/to/codesign.pfx \\
   SIGN_PFX_PASSWORD=your-password \\
   ./scripts/sign-windows-release.sh "$RELEASE_DIR"
+
+If you use signtool.exe on Windows:
+  signtool sign /f codesign.pfx /p your-password /tr http://timestamp.digicert.com /td sha256 /fd sha256 *.exe
 EOF
