@@ -20,11 +20,27 @@
       <img class="brand-mark" src="/static/branding/pingancoin-icon-64.png" alt="Pingancoin icon">
       <div class="brand-copy">
         <strong class="brand-name">Pingancoin Wallet</strong>
-        <span class="brand-sub">{{.Overview.Wallet.Network}} wallet service</span>
+        <span class="brand-sub">{{if .Overview.Wallet.Network}}{{.Overview.Wallet.Network}}{{else}}wallet{{end}} desktop workspace</span>
       </div>
     </div>
-    <div class="rpc-chip">{{.Overview.RPCURL}}</div>
+    <div class="topbar-side">
+      <div class="rpc-chip">{{.Overview.RPCURL}}</div>
+      <div class="status-chip {{if .Overview.Node.Online}}status-online{{else}}status-offline{{end}}">
+        {{if .Overview.Node.Online}}Node online{{else}}Node offline{{end}}
+      </div>
+    </div>
   </div>
+  {{if .Overview.Wallet.Exists}}
+  <nav class="shell section-nav">
+    <a href="#overview">Overview</a>
+    <a href="#receive">Receive</a>
+    <a href="#send">Send</a>
+    <a href="#activity">Activity</a>
+    <a href="#multisig">Multisig</a>
+    <a href="#security">Security</a>
+    <a href="#node">Node</a>
+  </nav>
+  {{end}}
 </header>
 {{end}}
 

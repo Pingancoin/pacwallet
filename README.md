@@ -12,6 +12,7 @@ It now includes:
 - the original CLI wallet
 - a local wallet service with JSON API
 - a browser-based UI wallet
+- a fuller desktop-wallet surface modeled after the shape of Bitcoin-style local wallets
 - a desktop launcher aimed at Windows app-window usage through Edge or Chrome
 - upstream RPC endpoint profiles with local-first defaults
 - a generated branding/icon set under `assets/branding/pingancoin`
@@ -33,17 +34,22 @@ go run ./cmd/pacwallet-desktop --network simnet --rpc http://127.0.0.1:9509 --br
 
 The web wallet serves:
 - `GET /` for the UI
+- `GET /healthz`
 - `GET /api/overview`
 - `POST /api/wallet/create`
+- `POST /api/wallet/encrypt`
+- `POST /api/wallet/changepassphrase`
 - `POST /api/wallet/restore`
 - `POST /api/upstreams`
 - `POST /api/upstreams/select`
 - `POST /api/addresses`
 - `POST /api/keys/import`
+- `POST /api/multisig/preview`
 - `POST /api/send`
 
 Backup and restore notes:
 - `GET /download/wallet` downloads the active `wallet.json`
+- `GET /download/pubkeys` exports local label/address/pubkey lines for signer collection
 - the UI can restore a `wallet.json` file directly
 - restoring over an existing wallet requires overwrite confirmation
 - overwrite restores automatically archive the previous wallet into `wallet-backups/`
@@ -63,6 +69,13 @@ Desktop launcher polish:
 - `pacwallet-desktop --version` prints build metadata
 - `pacwallet-desktop --config <path>` loads a JSON config file
 - `pacwallet-desktop --upstreamstemplate <path>` imports endpoint presets before the UI opens
+- the desktop home screen now includes:
+  - wallet summary and node health
+  - receive/address management with visible pubkeys
+  - send form
+  - UTXO and transaction history tables
+  - multisig preview for 3-of-5 collection
+  - backup, encryption, and passphrase rotation controls
 - the Windows release bundle now includes `pacwallet-desktop.json`, `release.json`, and `upstreams.mainnet.template.json`
 - the first-run UI now leads with node endpoint selection before wallet create/restore
 - the Windows installer keeps app binaries under the user program directory and the desktop config under `%AppData%\Pingancoin Wallet`

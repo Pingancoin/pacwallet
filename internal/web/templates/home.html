@@ -9,18 +9,22 @@
     <div class="hero-copy">
       <p class="eyebrow">First run</p>
       <h1>Set up Pingancoin Wallet</h1>
-      <p class="lede">Pick the node you want to trust, then create a new wallet or restore an existing `wallet.json`. Local `pacd` stays the safest default until your official RPC servers are online.</p>
+      <p class="lede">Choose the node you want to trust, create or restore a wallet, and keep the local file encrypted once you move past development use.</p>
+      <div class="hero-actions">
+        <a href="#setup-node" class="ghost-button">Choose Node</a>
+        <a href="#setup-wallet" class="ghost-button">Create or Restore</a>
+      </div>
     </div>
     <img class="hero-icon" src="/static/branding/pingancoin-icon-192.png" alt="Pingancoin icon">
   </section>
 
   <section class="dashboard-grid onboarding-grid">
-    <section class="section">
+    <section class="section" id="setup-node">
       <div class="section-header">
         <div>
           <p class="eyebrow">Step 1</p>
           <h2>Choose a node endpoint</h2>
-          <p>Wallets use RPC endpoints, not raw seed peers. Start with your local node, then add official RPC endpoints like `server1.pingancoin.org` when they are deployed.</p>
+          <p>Wallets talk to RPC nodes, not raw seed peers. Keep local `pacd` as the default until your official RPC servers are online.</p>
         </div>
         <span class="meta-chip">{{short $page.Upstream.ActiveURL}}</span>
       </div>
@@ -31,8 +35,8 @@
             <strong class="mono small">{{$page.Upstream.ActiveURL}}</strong>
           </div>
           <div>
-            <span class="detail-label">Saved profiles</span>
-            <strong>{{len $page.Upstream.Profiles}}</strong>
+            <span class="detail-label">Upstream status</span>
+            <strong>{{if $page.Node.Online}}Online{{else}}Offline{{end}}</strong>
           </div>
         </div>
         <form class="inline-form" method="post" action="/upstream/select">
@@ -66,30 +70,30 @@
       </div>
     </section>
 
-    <section class="section">
+    <section class="section" id="setup-wallet">
       <div class="section-header">
         <div>
           <p class="eyebrow">Step 2</p>
           <h2>Create or restore wallet</h2>
-          <p>New users create a wallet. Existing users restore their `wallet.json` directly here before the app starts tracking balances.</p>
+          <p>New users create a wallet here. Existing users can restore `wallet.json` before scanning balances.</p>
         </div>
       </div>
       <div class="stack choice-stack">
         <form class="setup-form choice-card" method="post" action="/wallet/create">
           <div>
             <strong>Create a new wallet</strong>
-            <p class="lede compact">Generates a fresh PAC wallet file on this machine.</p>
+            <p class="lede compact">Generates a fresh PAC wallet on this machine.</p>
           </div>
           <label>
-            <span>Passphrase (optional)</span>
-            <input type="password" name="passphrase" placeholder="Leave blank for an unencrypted dev wallet">
+            <span>Passphrase</span>
+            <input type="password" name="passphrase" placeholder="Recommended from the start">
           </label>
           <button type="submit">Create Wallet</button>
         </form>
         <form class="setup-form choice-card" method="post" action="/wallet/restore" enctype="multipart/form-data">
           <div>
             <strong>Restore an existing wallet</strong>
-            <p class="lede compact">Uploads a previous `wallet.json` and places it in the local wallet directory.</p>
+            <p class="lede compact">Uploads a previous `wallet.json` into the local wallet directory.</p>
           </div>
           <label>
             <span>Restore wallet.json</span>
@@ -98,8 +102,36 @@
           <button type="submit">Restore Wallet</button>
         </form>
       </div>
+    </section>
   </section>
   {{else}}
+  <section class="hero wallet-hero" id="overview">
+    <div class="hero-copy">
+      <p class="eyebrow">Wallet overview</p>
+      <h1>Desktop wallet workspace</h1>
+      <p class="lede">A full local wallet surface for balances, receiving, sending, backups, key export, and multisig coordination.</p>
+      <div class="hero-actions">
+        <a href="#receive" class="ghost-button">Receive</a>
+        <a href="#send" class="ghost-button">Send</a>
+        <a href="#multisig" class="ghost-button">Multisig</a>
+      </div>
+    </div>
+    <div class="hero-side">
+      <div class="hero-stat">
+        <span>Active node</span>
+        <strong>{{if $page.Node.Online}}{{$page.Node.Network}}{{else}}offline{{end}}</strong>
+      </div>
+      <div class="hero-stat">
+        <span>Best height</span>
+        <strong>{{$page.Node.BestHeight}}</strong>
+      </div>
+      <div class="hero-stat">
+        <span>Primary receive</span>
+        <strong class="mono">{{if gt $page.Wallet.KeyCount 0}}{{(index $page.Wallet.Keys 0).Address}}{{else}}{{$page.Wallet.AddressHint}}{{end}}</strong>
+      </div>
+    </div>
+  </section>
+
   <section class="metrics">
     <div class="metric">
       <span class="metric-label">Total</span>
@@ -121,27 +153,164 @@
       <span class="metric-label">Addresses</span>
       <strong>{{$page.Wallet.KeyCount}}</strong>
     </div>
+    <div class="metric">
+      <span class="metric-label">Mempool</span>
+      <strong>{{$page.Node.MempoolSize}}</strong>
+    </div>
   </section>
 
-  <section class="dashboard-grid">
+  <section class="dashboard-grid overview-grid">
     <section class="section">
       <div class="section-header">
         <div>
-          <p class="eyebrow">Node Access</p>
-          <h2>Wallet upstream</h2>
-          <p>Use a local `pacd` node by default. When your official RPC nodes are online, add them here and switch the wallet over.</p>
+          <p class="eyebrow">Wallet state</p>
+          <h2>Summary</h2>
+          <p>Current chain view, wallet file state, and endpoint connection.</p>
+        </div>
+        <span class="meta-chip">{{if $page.Wallet.Encrypted}}Encrypted{{else}}Unencrypted{{end}}</span>
+      </div>
+      <div class="detail-grid summary-grid">
+        <div>
+          <span class="detail-label">Wallet file</span>
+          <strong class="mono small">{{$page.Wallet.Path}}</strong>
+        </div>
+        <div>
+          <span class="detail-label">Network</span>
+          <strong>{{$page.Wallet.Network}}</strong>
+        </div>
+        <div>
+          <span class="detail-label">Node endpoint</span>
+          <strong class="mono small">{{$page.Upstream.ActiveURL}}</strong>
+        </div>
+        <div>
+          <span class="detail-label">Node health</span>
+          <strong>{{if $page.Node.Online}}Online{{else}}Offline{{end}}</strong>
+        </div>
+        <div>
+          <span class="detail-label">Best block</span>
+          <strong class="mono small">{{$page.Node.BestHash}}</strong>
+        </div>
+        <div>
+          <span class="detail-label">Peer count</span>
+          <strong>{{$page.Node.PeerCount}}</strong>
+        </div>
+      </div>
+      {{if $page.Node.Error}}
+      <div class="section-pad">
+        <div class="feedback error">Node scan warning: {{$page.Node.Error}}</div>
+      </div>
+      {{end}}
+    </section>
+
+    <section class="section" id="receive">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Receive</p>
+          <h2>Addresses</h2>
+          <p>Create new receive addresses and keep their public keys visible for multisig coordination.</p>
+        </div>
+        <span class="meta-chip">{{$page.Wallet.KeyCount}} keys</span>
+      </div>
+      <div class="stack">
+        <form class="inline-form" method="post" action="/addresses/create">
+          <label>
+            <span>Label</span>
+            <input type="text" name="label" placeholder="treasury-signer">
+          </label>
+          {{if $page.Wallet.Encrypted}}
+          <label>
+            <span>Passphrase</span>
+            <input type="password" name="passphrase" placeholder="Required">
+          </label>
+          {{end}}
+          <button type="submit">New Address</button>
+        </form>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Label</th>
+                <th>Address</th>
+                <th>Public Key</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{range $page.Wallet.Keys}}
+              <tr>
+                <td>{{.Label}}</td>
+                <td class="mono">{{.Address}}</td>
+                <td class="mono small">{{.PubKeyHex}}</td>
+                <td>{{.CreatedAt.Format "2006-01-02 15:04:05"}}</td>
+              </tr>
+              {{else}}
+              <tr>
+                <td colspan="4" class="empty">No wallet keys yet.</td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <section class="dashboard-grid">
+    <section class="section" id="send">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Send</p>
+          <h2>Broadcast transaction</h2>
+          <p>Build, sign, and submit a standard PAC transfer from local spendable outputs.</p>
+        </div>
+      </div>
+      <form class="stack form-grid" method="post" action="/send">
+        <label>
+          <span>Destination</span>
+          <input type="text" name="to" placeholder="{{$page.Wallet.AddressHint}}">
+        </label>
+        <div class="split">
+          <label>
+            <span>Amount (PAC)</span>
+            <input type="text" name="amount" placeholder="1.25000000">
+          </label>
+          <label>
+            <span>Fee (PAC)</span>
+            <input type="text" name="fee" value="0.0001">
+          </label>
+        </div>
+        <label>
+          <span>Change address (optional)</span>
+          <input type="text" name="change" placeholder="Defaults to first wallet address">
+        </label>
+        {{if $page.Wallet.Encrypted}}
+        <label>
+          <span>Passphrase</span>
+          <input type="password" name="passphrase" placeholder="Required to sign">
+        </label>
+        {{end}}
+        <button type="submit">Send PAC</button>
+      </form>
+    </section>
+
+    <section class="section" id="node">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Node</p>
+          <h2>Endpoint settings</h2>
+          <p>Point the wallet at local or official RPC nodes without editing files by hand.</p>
         </div>
         <span class="meta-chip">{{short $page.Upstream.ActiveURL}}</span>
       </div>
       <div class="stack">
         <div class="detail-grid">
           <div>
-            <span class="detail-label">Current endpoint</span>
+            <span class="detail-label">Active endpoint</span>
             <strong class="mono small">{{$page.Upstream.ActiveURL}}</strong>
           </div>
           <div>
-            <span class="detail-label">Config file</span>
-            <strong class="mono small">{{short $page.Upstream.ConfigPath}}</strong>
+            <span class="detail-label">Profile file</span>
+            <strong class="mono small">{{$page.Upstream.ConfigPath}}</strong>
           </div>
         </div>
         <form class="inline-form" method="post" action="/upstream/select">
@@ -174,20 +343,206 @@
         </form>
       </div>
     </section>
+  </section>
+
+  <section class="dashboard-grid">
+    <section class="section" id="activity">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Coins</p>
+          <h2>Spendable outputs</h2>
+          <p>Track confirmed, immature, and pending UTXOs currently controlled by this wallet.</p>
+        </div>
+        <span class="meta-chip">{{$page.Balance.UTXOCount}} UTXOs</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Address</th>
+              <th>Tx</th>
+              <th>Value</th>
+              <th>Height</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range $page.Balance.UTXOs}}
+            <tr>
+              <td class="mono">{{.Address}}</td>
+              <td class="mono small">{{short .TxHash}}:{{.Vout}}</td>
+              <td>{{formatPAC .Value}} PAC</td>
+              <td>{{.Height}}</td>
+              <td>{{if .Pending}}Pending{{else if .Mature}}Spendable{{else}}Immature{{end}}</td>
+            </tr>
+            {{else}}
+            <tr>
+              <td colspan="5" class="empty">No UTXOs available yet.</td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+    </section>
 
     <section class="section">
       <div class="section-header">
         <div>
-          <p class="eyebrow">Receive</p>
-          <h2>Wallet addresses</h2>
+          <p class="eyebrow">Activity</p>
+          <h2>Transaction history</h2>
+          <p>Recent wallet movements, including pending entries from the mempool.</p>
         </div>
-        <span class="meta-chip">{{if $page.Wallet.Encrypted}}Encrypted{{else}}Unencrypted{{end}}</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Tx</th>
+              <th>Height</th>
+              <th>Status</th>
+              <th>Received</th>
+              <th>Sent</th>
+              <th>Net</th>
+              <th>Addresses</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range $page.History}}
+            <tr>
+              <td class="mono small">{{.TxHash}}</td>
+              <td>{{.Height}}</td>
+              <td>{{if .Pending}}Pending{{else}}Confirmed{{end}}</td>
+              <td>{{formatPAC .Received}} PAC</td>
+              <td>{{formatPAC .Sent}} PAC</td>
+              <td>{{formatPAC .Net}} PAC</td>
+              <td class="mono small">{{range $i, $addr := .Addresses}}{{if $i}}, {{end}}{{$addr}}{{end}}</td>
+            </tr>
+            {{else}}
+            <tr>
+              <td colspan="7" class="empty">No wallet activity yet.</td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+
+  <section class="dashboard-grid">
+    <section class="section" id="multisig">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Multisig</p>
+          <h2>Public keys and 3-of-5 preview</h2>
+          <p>Export signer pubkeys, paste collected pubkeys, and preview the final P2SH address before freezing mainnet parameters.</p>
+        </div>
+        <a class="secondary-link" href="/download/pubkeys">Download pubkeys.txt</a>
       </div>
       <div class="stack">
-        <form class="inline-form" method="post" action="/addresses/create">
+        <div class="key-list">
+          {{range $page.Wallet.Keys}}
+          <div class="key-card">
+            <strong>{{if .Label}}{{.Label}}{{else}}Unnamed key{{end}}</strong>
+            <span class="mono small">{{.Address}}</span>
+            <span class="mono small">{{.PubKeyHex}}</span>
+          </div>
+          {{else}}
+          <div class="empty">No public keys available yet.</div>
+          {{end}}
+        </div>
+        <form class="stack form-grid" method="post" action="/multisig/preview">
+          <div class="split">
+            <label>
+              <span>Required signatures</span>
+              <input type="text" name="required" value="{{.MultiSigRequired}}">
+            </label>
+            <label>
+              <span>Suggested target</span>
+              <input type="text" value="3-of-5 project multisig" disabled>
+            </label>
+          </div>
           <label>
-            <span>Label</span>
-            <input type="text" name="label" placeholder="miner-1">
+            <span>Public keys (one per line, or pasted from pubkeys.txt)</span>
+            <textarea name="pubkeys" rows="8" placeholder="02...&#10;03...">{{.MultiSigPubKeys}}</textarea>
+          </label>
+          <button type="submit">Preview Multisig Address</button>
+        </form>
+        {{if .MultiSigPreview}}
+        <div class="preview-panel">
+          <div class="detail-grid">
+            <div>
+              <span class="detail-label">Address</span>
+              <strong class="mono small">{{.MultiSigPreview.Address}}</strong>
+            </div>
+            <div>
+              <span class="detail-label">Participants</span>
+              <strong>{{.MultiSigPreview.Required}} of {{.MultiSigPreview.Participants}}</strong>
+            </div>
+            <div>
+              <span class="detail-label">Redeem script</span>
+              <strong class="mono small">{{.MultiSigPreview.RedeemScript}}</strong>
+            </div>
+            <div>
+              <span class="detail-label">P2SH script</span>
+              <strong class="mono small">{{.MultiSigPreview.P2SHScript}}</strong>
+            </div>
+          </div>
+        </div>
+        {{end}}
+      </div>
+    </section>
+
+    <section class="section" id="security">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Security</p>
+          <h2>Backup, encryption, and recovery</h2>
+          <p>Keep a local backup, enable encryption, rotate passphrases, and archive replaced wallet files.</p>
+        </div>
+        <a class="secondary-link" href="/download/wallet">Download wallet.json</a>
+      </div>
+      <div class="stack">
+        <div class="detail-grid">
+          <div>
+            <span class="detail-label">Wallet created</span>
+            <strong>{{$page.Wallet.CreatedAt.Format "2006-01-02 15:04:05 UTC"}}</strong>
+          </div>
+          <div>
+            <span class="detail-label">Backup directory</span>
+            <strong class="mono small">{{$page.Wallet.BackupDir}}</strong>
+          </div>
+        </div>
+        {{if not $page.Wallet.Encrypted}}
+        <form class="stack form-grid" method="post" action="/wallet/encrypt">
+          <label>
+            <span>Enable wallet encryption</span>
+            <input type="password" name="passphrase" placeholder="New passphrase">
+          </label>
+          <button type="submit">Encrypt Wallet</button>
+        </form>
+        {{else}}
+        <form class="stack form-grid" method="post" action="/wallet/changepassphrase">
+          <div class="split">
+            <label>
+              <span>Current passphrase</span>
+              <input type="password" name="old_passphrase" placeholder="Current passphrase">
+            </label>
+            <label>
+              <span>New passphrase</span>
+              <input type="password" name="new_passphrase" placeholder="New passphrase">
+            </label>
+          </div>
+          <button type="submit">Change Passphrase</button>
+        </form>
+        {{end}}
+        <form class="stack form-grid" method="post" action="/keys/import">
+          <label>
+            <span>Import label</span>
+            <input type="text" name="label" placeholder="recovered">
+          </label>
+          <label>
+            <span>Private key hex</span>
+            <textarea name="privkey" rows="3" placeholder="32-byte private key hex"></textarea>
           </label>
           {{if $page.Wallet.Encrypted}}
           <label>
@@ -195,91 +550,9 @@
             <input type="password" name="passphrase" placeholder="Required">
           </label>
           {{end}}
-          <button type="submit">New Address</button>
+          <button type="submit">Import Private Key</button>
         </form>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Label</th>
-                <th>Address</th>
-                <th>Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {{range $page.Wallet.Keys}}
-              <tr>
-                <td>{{.Label}}</td>
-                <td class="mono">{{.Address}}</td>
-                <td>{{.CreatedAt.Format "2006-01-02 15:04:05"}}</td>
-              </tr>
-              {{else}}
-              <tr>
-                <td colspan="3" class="empty">No wallet keys yet.</td>
-              </tr>
-              {{end}}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-header">
-        <div>
-          <p class="eyebrow">Send</p>
-          <h2>Broadcast transaction</h2>
-        </div>
-      </div>
-      <form class="stack form-grid" method="post" action="/send">
-        <label>
-          <span>Destination</span>
-          <input type="text" name="to" placeholder="{{$page.Wallet.AddressHint}}">
-        </label>
-        <div class="split">
-          <label>
-            <span>Amount (PAC)</span>
-            <input type="text" name="amount" placeholder="1.25000000">
-          </label>
-          <label>
-            <span>Fee (PAC)</span>
-            <input type="text" name="fee" value="0.0001">
-          </label>
-        </div>
-        <label>
-          <span>Change address (optional)</span>
-          <input type="text" name="change" placeholder="Defaults to first wallet address">
-        </label>
-        {{if $page.Wallet.Encrypted}}
-        <label>
-          <span>Passphrase</span>
-          <input type="password" name="passphrase" placeholder="Required to sign">
-        </label>
-        {{end}}
-        <button type="submit">Send PAC</button>
-      </form>
-    </section>
-
-    <section class="section">
-      <div class="section-header">
-        <div>
-          <p class="eyebrow">Backup</p>
-          <h2>Keys and recovery</h2>
-        </div>
-        <a class="secondary-link" href="/download/wallet">Download wallet.json</a>
-      </div>
-      <div class="stack">
-        <div class="detail-grid">
-          <div>
-            <span class="detail-label">Wallet file</span>
-            <strong class="mono small">{{short $page.Wallet.Path}}</strong>
-          </div>
-          <div>
-            <span class="detail-label">Created</span>
-            <strong>{{$page.Wallet.CreatedAt.Format "2006-01-02 15:04:05 UTC"}}</strong>
-          </div>
-        </div>
-        <form class="stack" method="post" action="/wallet/restore" enctype="multipart/form-data">
+        <form class="stack form-grid" method="post" action="/wallet/restore" enctype="multipart/form-data">
           <label>
             <span>Restore from wallet.json</span>
             <input type="file" name="walletfile" accept=".json,application/json">
@@ -307,61 +580,6 @@
           <div class="empty">No archived wallet backups yet.</div>
           {{end}}
         </div>
-        <form class="stack" method="post" action="/keys/import">
-          <label>
-            <span>Import label</span>
-            <input type="text" name="label" placeholder="recovered">
-          </label>
-          <label>
-            <span>Private key hex</span>
-            <textarea name="privkey" rows="3" placeholder="32-byte private key hex"></textarea>
-          </label>
-          {{if $page.Wallet.Encrypted}}
-          <label>
-            <span>Passphrase</span>
-            <input type="password" name="passphrase" placeholder="Required">
-          </label>
-          {{end}}
-          <button type="submit">Import Private Key</button>
-        </form>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-header">
-        <div>
-          <p class="eyebrow">Activity</p>
-          <h2>Transaction history</h2>
-        </div>
-        <span class="meta-chip">{{$page.Balance.UTXOCount}} UTXOs</span>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Tx</th>
-              <th>Height</th>
-              <th>Status</th>
-              <th>Net</th>
-              <th>Addresses</th>
-            </tr>
-          </thead>
-          <tbody>
-            {{range $page.History}}
-            <tr>
-              <td class="mono">{{short .TxHash}}</td>
-              <td>{{.Height}}</td>
-              <td>{{if .Pending}}Pending{{else}}Confirmed{{end}}</td>
-              <td>{{formatPAC .Net}} PAC</td>
-              <td class="mono">{{range $i, $addr := .Addresses}}{{if $i}}, {{end}}{{$addr}}{{end}}</td>
-            </tr>
-            {{else}}
-            <tr>
-              <td colspan="5" class="empty">No wallet activity yet.</td>
-            </tr>
-            {{end}}
-          </tbody>
-        </table>
       </div>
     </section>
   </section>

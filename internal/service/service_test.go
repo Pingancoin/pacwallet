@@ -66,8 +66,17 @@ func TestServiceOverviewAndAddressCreate(t *testing.T) {
 	if overview.Wallet.KeyCount != 2 {
 		t.Fatalf("key_count = %d, want 2", overview.Wallet.KeyCount)
 	}
+	if overview.Wallet.Keys[0].PubKeyHex == "" {
+		t.Fatal("primary key pubkey should be present")
+	}
 	if overview.Balance.Total != 200_000_000 {
 		t.Fatalf("balance total = %d, want 200000000", overview.Balance.Total)
+	}
+	if !overview.Node.Online {
+		t.Fatal("node should be reported online")
+	}
+	if overview.Node.BestHeight != 0 {
+		t.Fatalf("node best height = %d, want 0", overview.Node.BestHeight)
 	}
 }
 
@@ -291,6 +300,93 @@ func TestServiceRestoreWallet(t *testing.T) {
 	}
 }
 
+func TestServiceEncryptPassphraseAndPubKeys(t *testing.T) {
+	params := chaincfg.SimNetParams()
+	walletDir := t.TempDir()
+
+	svc := service.New(params, walletDir, "http://127.0.0.1:9509")
+	if _, err := svc.CreateWallet(service.CreateWalletRequest{}); err != nil {
+		t.Fatal(err)
+	}
+
+	summary, err := svc.EncryptWallet(service.EncryptWalletRequest{Passphrase: "correct horse battery staple"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !summary.Encrypted {
+		t.Fatal("wallet should be encrypted after encrypt call")
+	}
+
+	summary, err = svc.ChangePassphrase(service.ChangePassphraseRequest{
+		OldPassphrase: "correct horse battery staple",
+		NewPassphrase: "new correct horse battery staple",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !summary.Encrypted {
+		t.Fatal("wallet should stay encrypted after passphrase rotation")
+	}
+
+	pubkeys, name, err := svc.PubKeysFile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "pubkeys.txt" {
+		t.Fatalf("pubkeys filename = %s, want pubkeys.txt", name)
+	}
+	if len(pubkeys) == 0 {
+		t.Fatal("pubkeys file should not be empty")
+	}
+	if string(pubkeys) == "" {
+		t.Fatal("pubkeys text should be populated")
+	}
+}
+
+func TestServicePreviewMultiSig(t *testing.T) {
+	params := chaincfg.MainNetParams()
+	walletDir := t.TempDir()
+
+	svc := service.New(params, walletDir, "http://127.0.0.1:9509")
+	summary, err := svc.CreateWallet(service.CreateWalletRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := walletcore.Load(walletcore.Path(walletDir, params.Name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for len(w.Keys) < 5 {
+		if err := w.AddKey(params, "signer"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := walletcore.Save(walletcore.Path(walletDir, params.Name), w); err != nil {
+		t.Fatal(err)
+	}
+	if summary.KeyCount == 0 {
+		t.Fatal("expected at least one key in created wallet")
+	}
+
+	pubKeys := make([]string, 0, 5)
+	for i := 0; i < 5; i++ {
+		pubKeys = append(pubKeys, w.Keys[i].PubKeyHex)
+	}
+	result, err := svc.PreviewMultiSig(service.MultiSigPreviewRequest{
+		Required: 3,
+		PubKeys:  pubKeys,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Required != 3 || result.Participants != 5 {
+		t.Fatalf("preview result = %+v", result)
+	}
+	if result.Address == "" || result.RedeemScript == "" || result.P2SHScript == "" {
+		t.Fatalf("incomplete multisig preview: %+v", result)
+	}
+}
+
 type fakePACD struct {
 	mu          sync.RWMutex
 	pkScriptHex string
@@ -310,6 +406,14 @@ func (f *fakePACD) currentPkScript() string {
 
 func (f *fakePACD) server() *httptest.Server {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/getnetworkinfo", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"network":    "simnet",
+			"peers":      3,
+			"besthash":   "block-0",
+			"bestheight": 0,
+		})
+	})
 	mux.HandleFunc("/getbestblock", func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"height": 0,

@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -71,14 +72,17 @@ func TestServerSetupAndDashboard(t *testing.T) {
 		t.Fatal(err)
 	}
 	body = mustReadString(t, resp)
-	if !strings.Contains(body, "Wallet addresses") {
+	if !strings.Contains(body, "Desktop wallet workspace") {
 		t.Fatalf("home body missing dashboard state: %s", body)
 	}
 	if !strings.Contains(body, "Broadcast transaction") {
 		t.Fatalf("home body missing send form: %s", body)
 	}
-	if !strings.Contains(body, "Wallet upstream") {
-		t.Fatalf("home body missing upstream section: %s", body)
+	if !strings.Contains(body, "Public keys and 3-of-5 preview") {
+		t.Fatalf("home body missing multisig section: %s", body)
+	}
+	if !strings.Contains(body, "Endpoint settings") {
+		t.Fatalf("home body missing endpoint section: %s", body)
 	}
 }
 
@@ -155,7 +159,7 @@ func TestServerRestoreWalletForm(t *testing.T) {
 		t.Fatal(err)
 	}
 	homeBody := mustReadString(t, homeResp)
-	if !strings.Contains(homeBody, "Wallet addresses") {
+	if !strings.Contains(homeBody, "Desktop wallet workspace") {
 		t.Fatalf("restored home missing dashboard state: %s", homeBody)
 	}
 	if !strings.Contains(homeBody, "Archived backups") {
@@ -163,8 +167,91 @@ func TestServerRestoreWalletForm(t *testing.T) {
 	}
 }
 
+func TestServerMultisigPreviewAndHealth(t *testing.T) {
+	params := chaincfg.SimNetParams()
+	walletDir := t.TempDir()
+	sourceWallet, err := walletcore.Create(walletcore.Path(walletDir, params.Name), params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for len(sourceWallet.Keys) < 5 {
+		if err := sourceWallet.AddKey(params, "signer"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := walletcore.Save(walletcore.Path(walletDir, params.Name), sourceWallet); err != nil {
+		t.Fatal(err)
+	}
+
+	pkScript, err := address.DecodeAddressScript(params, sourceWallet.Keys[0].Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fakePACD := newFakePACDServer(hex.EncodeToString(pkScript))
+	defer fakePACD.Close()
+
+	svc := service.New(params, walletDir, fakePACD.URL)
+	server, err := web.New(svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(server.Handler())
+	defer ts.Close()
+
+	pubKeys := make([]string, 0, 5)
+	for i := 0; i < 5; i++ {
+		pubKeys = append(pubKeys, sourceWallet.Keys[i].PubKeyHex)
+	}
+	form := url.Values{}
+	form.Set("required", "3")
+	form.Set("pubkeys", strings.Join(pubKeys, "\n"))
+
+	resp, err := http.Post(ts.URL+"/multisig/preview", "application/x-www-form-urlencoded", strings.NewReader(form.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := mustReadString(t, resp)
+	if !strings.Contains(body, "Redeem script") {
+		t.Fatalf("multisig body missing redeem script: %s", body)
+	}
+	if !strings.Contains(body, "Participants") {
+		t.Fatalf("multisig body missing participant details: %s", body)
+	}
+
+	healthResp, err := http.Get(ts.URL + "/healthz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer healthResp.Body.Close()
+	if healthResp.StatusCode != http.StatusOK {
+		t.Fatalf("health status = %d, want 200", healthResp.StatusCode)
+	}
+	var health struct {
+		OK       bool   `json:"ok"`
+		Endpoint string `json:"endpoint"`
+		Network  string `json:"network"`
+	}
+	if err := json.NewDecoder(healthResp.Body).Decode(&health); err != nil {
+		t.Fatal(err)
+	}
+	if !health.OK {
+		t.Fatalf("health response should be OK: %+v", health)
+	}
+	if health.Endpoint == "" || health.Network == "" {
+		t.Fatalf("health response missing endpoint or network: %+v", health)
+	}
+}
+
 func newFakePACDServer(pkScriptHex string) *httptest.Server {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/getnetworkinfo", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"network":    "simnet",
+			"peers":      2,
+			"besthash":   "block-0",
+			"bestheight": 0,
+		})
+	})
 	mux.HandleFunc("/getbestblock", func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"height": 0,

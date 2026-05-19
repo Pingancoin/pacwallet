@@ -2,9 +2,11 @@ package service
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -12,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Pingancoin/pacwallet/internal/address"
 	"github.com/Pingancoin/pacwallet/internal/chaincfg"
 	walletcore "github.com/Pingancoin/pacwallet/internal/wallet"
 )
@@ -35,6 +38,7 @@ type Overview struct {
 	History  []walletcore.HistoryEntry `json:"history"`
 	RPCURL   string                    `json:"rpc_url"`
 	Upstream UpstreamSettings          `json:"upstream"`
+	Node     NodeStatus                `json:"node"`
 }
 
 type WalletSummary struct {
@@ -53,7 +57,20 @@ type WalletSummary struct {
 type KeySummary struct {
 	Label     string    `json:"label"`
 	Address   string    `json:"address"`
+	PubKeyHex string    `json:"pubkey_hex"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type NodeStatus struct {
+	Online      bool      `json:"online"`
+	Endpoint    string    `json:"endpoint"`
+	Network     string    `json:"network"`
+	BestHeight  uint32    `json:"best_height"`
+	BestHash    string    `json:"best_hash"`
+	MempoolSize int       `json:"mempool_size"`
+	PeerCount   int       `json:"peer_count"`
+	ScannedAt   time.Time `json:"scanned_at"`
+	Error       string    `json:"error,omitempty"`
 }
 
 type CreateWalletRequest struct {
@@ -96,6 +113,15 @@ type RestoreWalletRequest struct {
 	Overwrite bool   `json:"overwrite"`
 }
 
+type EncryptWalletRequest struct {
+	Passphrase string `json:"passphrase"`
+}
+
+type ChangePassphraseRequest struct {
+	OldPassphrase string `json:"old_passphrase"`
+	NewPassphrase string `json:"new_passphrase"`
+}
+
 type BackupInfo struct {
 	Name      string    `json:"name"`
 	Path      string    `json:"path"`
@@ -132,6 +158,21 @@ type AddUpstreamRequest struct {
 
 type SelectUpstreamRequest struct {
 	ID string `json:"id"`
+}
+
+type MultiSigPreviewRequest struct {
+	Required int      `json:"required"`
+	PubKeys  []string `json:"pubkeys"`
+}
+
+type MultiSigPreviewResult struct {
+	Required     int      `json:"required"`
+	Participants int      `json:"participants"`
+	PubKeys      []string `json:"pubkeys"`
+	Address      string   `json:"address"`
+	ScriptHash   string   `json:"script_hash"`
+	RedeemScript string   `json:"redeem_script"`
+	P2SHScript   string   `json:"p2sh_script"`
 }
 
 type upstreamFile struct {
@@ -171,7 +212,9 @@ func (s *Service) RPCURL() string {
 func (s *Service) Overview() (Overview, error) {
 	s.mu.Lock()
 	w, summary, err := s.loadWalletSummaryLocked()
+	rpcURL := s.rpcURL
 	s.mu.Unlock()
+	node := s.probeNode(rpcURL)
 	if err != nil {
 		if errors.Is(err, ErrWalletNotFound) {
 			return Overview{
@@ -184,13 +227,28 @@ func (s *Service) Overview() (Overview, error) {
 				},
 				RPCURL:   s.rpcURL,
 				Upstream: s.upstreamSettingsLocked(),
+				Node:     node,
 			}, nil
 		}
 		return Overview{}, err
 	}
 	view, err := walletcore.ScanWallet(s.params, w, s.rpcURL)
 	if err != nil {
-		return Overview{}, err
+		node.Error = err.Error()
+		return Overview{
+			Wallet:   summary,
+			RPCURL:   s.rpcURL,
+			Upstream: s.upstreamSettingsLocked(),
+			Node:     node,
+		}, nil
+	}
+	if node.BestHeight == 0 && view.Balance.BestHeight > 0 {
+		node.Online = true
+		node.Endpoint = rpcURL
+		node.Network = s.params.Name
+		node.BestHeight = view.Balance.BestHeight
+		node.BestHash = view.Balance.BestHash
+		node.ScannedAt = time.Now().UTC()
 	}
 	return Overview{
 		Wallet:   summary,
@@ -198,6 +256,7 @@ func (s *Service) Overview() (Overview, error) {
 		History:  view.History,
 		RPCURL:   s.rpcURL,
 		Upstream: s.upstreamSettingsLocked(),
+		Node:     node,
 	}, nil
 }
 
@@ -235,6 +294,44 @@ func (s *Service) CreateAddress(req CreateAddressRequest) (KeySummary, error) {
 		return KeySummary{}, err
 	}
 	return summarizeKey(w.Keys[len(w.Keys)-1]), nil
+}
+
+func (s *Service) EncryptWallet(req EncryptWalletRequest) (WalletSummary, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	passphrase := strings.TrimSpace(req.Passphrase)
+	if passphrase == "" {
+		return WalletSummary{}, fmt.Errorf("passphrase is required")
+	}
+	w, err := s.loadWalletLocked()
+	if err != nil {
+		return WalletSummary{}, err
+	}
+	if err := w.Encrypt(passphrase); err != nil {
+		return WalletSummary{}, err
+	}
+	if err := walletcore.Save(s.walletPath, w); err != nil {
+		return WalletSummary{}, err
+	}
+	return summarizeWallet(s.params, s.walletPath, w, s.BackupDir()), nil
+}
+
+func (s *Service) ChangePassphrase(req ChangePassphraseRequest) (WalletSummary, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	w, err := s.loadWalletLocked()
+	if err != nil {
+		return WalletSummary{}, err
+	}
+	if err := w.ChangePassphrase(strings.TrimSpace(req.OldPassphrase), strings.TrimSpace(req.NewPassphrase)); err != nil {
+		return WalletSummary{}, err
+	}
+	if err := walletcore.Save(s.walletPath, w); err != nil {
+		return WalletSummary{}, err
+	}
+	return summarizeWallet(s.params, s.walletPath, w, s.BackupDir()), nil
 }
 
 func (s *Service) ImportPrivateKey(req ImportPrivateKeyRequest) (KeySummary, error) {
@@ -321,6 +418,21 @@ func (s *Service) WalletFile() ([]byte, string, error) {
 	return data, filepath.Base(s.walletPath), nil
 }
 
+func (s *Service) PubKeysFile() ([]byte, string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	w, err := s.loadWalletLocked()
+	if err != nil {
+		return nil, "", err
+	}
+	var b strings.Builder
+	for _, key := range w.Keys {
+		fmt.Fprintf(&b, "%s %s %s\n", strings.TrimSpace(key.Label), key.Address, key.PubKeyHex)
+	}
+	return []byte(b.String()), "pubkeys.txt", nil
+}
+
 func (s *Service) RestoreWallet(req RestoreWalletRequest) (WalletSummary, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -373,6 +485,44 @@ func (s *Service) BackupFile(name string) ([]byte, string, error) {
 		return nil, "", err
 	}
 	return data, cleanName, nil
+}
+
+func (s *Service) PreviewMultiSig(req MultiSigPreviewRequest) (MultiSigPreviewResult, error) {
+	required := req.Required
+	if required == 0 {
+		required = 3
+	}
+	pubKeysHex := make([]string, 0, len(req.PubKeys))
+	pubKeys := make([][]byte, 0, len(req.PubKeys))
+	for _, value := range req.PubKeys {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		pubKey, err := decodeHexString(value)
+		if err != nil {
+			return MultiSigPreviewResult{}, fmt.Errorf("pubkey %q: %w", value, err)
+		}
+		pubKeysHex = append(pubKeysHex, strings.ToLower(value))
+		pubKeys = append(pubKeys, pubKey)
+	}
+	script, err := address.MultiSigRedeemScript(required, pubKeys)
+	if err != nil {
+		return MultiSigPreviewResult{}, err
+	}
+	addr, scriptHash, p2shScript, err := address.AddressFromScript(s.params, script)
+	if err != nil {
+		return MultiSigPreviewResult{}, err
+	}
+	return MultiSigPreviewResult{
+		Required:     required,
+		Participants: len(pubKeys),
+		PubKeys:      pubKeysHex,
+		Address:      addr,
+		ScriptHash:   encodeHexString(scriptHash),
+		RedeemScript: encodeHexString(script),
+		P2SHScript:   encodeHexString(p2shScript),
+	}, nil
 }
 
 func (s *Service) AddUpstream(req AddUpstreamRequest) (UpstreamSettings, error) {
@@ -550,6 +700,7 @@ func summarizeKey(key walletcore.Key) KeySummary {
 	return KeySummary{
 		Label:     key.Label,
 		Address:   key.Address,
+		PubKeyHex: key.PubKeyHex,
 		CreatedAt: key.CreatedAt,
 	}
 }
@@ -828,4 +979,83 @@ func mergeTemplateProfile(existing *UpstreamProfile, candidate UpstreamProfile) 
 		changed = true
 	}
 	return changed
+}
+
+type upstreamNetworkInfo struct {
+	Network     string `json:"network"`
+	BestHeight  uint32 `json:"bestheight"`
+	BestHash    string `json:"bestblockhash"`
+	MempoolSize int    `json:"mempoolsize"`
+	PeerCount   int    `json:"peercount"`
+}
+
+type chainTip struct {
+	Height uint32 `json:"height"`
+	Hash   string `json:"hash"`
+}
+
+type rpcMempool struct {
+	Size int `json:"size"`
+}
+
+func (s *Service) probeNode(rpcURL string) NodeStatus {
+	node := NodeStatus{
+		Endpoint:  rpcURL,
+		Network:   s.params.Name,
+		ScannedAt: time.Now().UTC(),
+	}
+	rpcURL = normalizeRPCURL(rpcURL)
+	if rpcURL == "" {
+		node.Error = "upstream RPC URL is empty"
+		return node
+	}
+	var networkInfo upstreamNetworkInfo
+	if err := fetchJSON(rpcURL+"/getnetworkinfo", &networkInfo); err == nil {
+		node.Online = true
+		node.Network = networkInfo.Network
+		node.BestHeight = networkInfo.BestHeight
+		node.BestHash = networkInfo.BestHash
+		node.MempoolSize = networkInfo.MempoolSize
+		node.PeerCount = networkInfo.PeerCount
+		return node
+	}
+
+	var tip chainTip
+	if err := fetchJSON(rpcURL+"/getbestblock", &tip); err != nil {
+		node.Error = err.Error()
+		return node
+	}
+	node.Online = true
+	node.BestHeight = tip.Height
+	node.BestHash = tip.Hash
+
+	var mempool rpcMempool
+	if err := fetchJSON(rpcURL+"/getrawmempool", &mempool); err == nil {
+		node.MempoolSize = mempool.Size
+	}
+	return node
+}
+
+func fetchJSON(url string, dest any) error {
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("%s returned %s", url, resp.Status)
+	}
+	return json.NewDecoder(resp.Body).Decode(dest)
+}
+
+func decodeHexString(value string) ([]byte, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, fmt.Errorf("empty hex string")
+	}
+	return hex.DecodeString(value)
+}
+
+func encodeHexString(value []byte) string {
+	return hex.EncodeToString(value)
 }
