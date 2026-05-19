@@ -30,15 +30,21 @@ Name: "{userappdata}\Pingancoin Wallet"; Permissions: users-modify
 
 [Files]
 Source: "{#SourceReleaseDir}\pacwallet.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourceReleaseDir}\pacwallet-qt.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceReleaseDir}\pacwallet-desktop.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceReleaseDir}\release.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceReleaseDir}\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceReleaseDir}\WINDOWS_RELEASE_NOTES.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceReleaseDir}\branding\*"; DestDir: "{app}\branding"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SourceReleaseDir}\*.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourceReleaseDir}\platforms\*"; DestDir: "{app}\platforms"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: DirExists(ExpandConstant('{#SourceReleaseDir}\platforms'))
+Source: "{#SourceReleaseDir}\styles\*"; DestDir: "{app}\styles"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: DirExists(ExpandConstant('{#SourceReleaseDir}\styles'))
+Source: "{#SourceReleaseDir}\imageformats\*"; DestDir: "{app}\imageformats"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: DirExists(ExpandConstant('{#SourceReleaseDir}\imageformats'))
 Source: "{#SourceReleaseDir}\pacwallet-desktop.json"; DestDir: "{userappdata}\Pingancoin Wallet"; DestName: "pacwallet-desktop.json"; Flags: ignoreversion onlyifdoesntexist uninsneveruninstall
 Source: "{#SourceReleaseDir}\upstreams.mainnet.template.json"; DestDir: "{userappdata}\Pingancoin Wallet"; DestName: "upstreams.mainnet.template.json"; Flags: ignoreversion onlyifdoesntexist uninsneveruninstall
 
 [Icons]
+Name: "{autoprograms}\Pingancoin Wallet (Native Qt)"; Filename: "{app}\pacwallet-qt.exe"; WorkingDir: "{app}"; IconFilename: "{app}\branding\pingancoin-icon.ico"
 Name: "{autoprograms}\Pingancoin Wallet"; Filename: "{app}\pacwallet-desktop.exe"; Parameters: "--config ""{userappdata}\Pingancoin Wallet\pacwallet-desktop.json"""; WorkingDir: "{app}"; IconFilename: "{app}\branding\pingancoin-icon.ico"
 Name: "{autoprograms}\Pingancoin Wallet (Web Service)"; Filename: "{app}\pacwallet.exe"; Parameters: "serve --network mainnet --rpc http://127.0.0.1:9509 --listen 127.0.0.1:19709"; WorkingDir: "{app}"; IconFilename: "{app}\branding\pingancoin-icon.ico"
 Name: "{autoprograms}\Wallet Release Notes"; Filename: "{app}\WINDOWS_RELEASE_NOTES.txt"

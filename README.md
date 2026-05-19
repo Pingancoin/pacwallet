@@ -146,6 +146,13 @@ For macOS native packaging:
 VERSION=0.3.0-rc1 ./scripts/build-macos-qt-release.sh
 ```
 
+For Windows native Qt packaging on a Windows build machine:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-windows-qt-toolchain.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\build-windows-qt-release.ps1
+```
+
 ## Security Status
 
 Private keys can be encrypted with passphrase-derived Argon2id keys and

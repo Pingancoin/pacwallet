@@ -71,3 +71,18 @@ That produces:
 - bundled Qt frameworks via `macdeployqt`
 - `release.json`
 - a zip archive under `dist/`
+
+## Windows Native Release
+
+On a Windows build machine:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-windows-qt-toolchain.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\build-windows-qt-release.ps1
+```
+
+That produces:
+
+- a deployable `pacwallet-qt.exe`
+- Qt runtime DLLs and plugin folders via `windeployqt`
+- a zipped Windows release directory under `dist\`
