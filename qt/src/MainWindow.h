@@ -53,6 +53,8 @@ private:
     ServiceController m_service;
     bool m_walletAvailable = false;
     bool m_initialSizeApplied = false;
+    bool m_backendAutoStartPending = false;
+    bool m_windowClosing = false;
     QString m_languageCode;
 
     QLabel *m_brandLabel;

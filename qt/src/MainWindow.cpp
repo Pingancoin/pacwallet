@@ -157,14 +157,17 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_settingsPage, &SettingsPage::stopBackendRequested, &m_service, &ServiceController::stop);
     connect(&m_service, &ServiceController::serviceLog, m_settingsPage, &SettingsPage::appendLog);
     connect(&m_service, &ServiceController::serviceError, this, [this](const QString &message) {
+        m_backendAutoStartPending = false;
         showError(QStringLiteral("service"), message);
         m_settingsPage->appendLog(message);
     });
     connect(&m_service, &ServiceController::serviceStarted, this, [this]() {
+        m_backendAutoStartPending = false;
         statusBar()->showMessage(l10n::text(QStringLiteral("Local pacwallet service started.")), 3000);
         refreshOverview();
     });
     connect(&m_service, &ServiceController::serviceStopped, this, [this]() {
+        m_backendAutoStartPending = false;
         statusBar()->showMessage(l10n::text(QStringLiteral("Local pacwallet service stopped.")), 3000);
     });
 
@@ -290,11 +293,28 @@ void MainWindow::buildUi()
 
 void MainWindow::refreshOverview()
 {
+    if (m_backendAutoStartPending) {
+        return;
+    }
+    ensureLocalBackendRunning();
+    if (m_backendAutoStartPending) {
+        statusBar()->showMessage(l10n::text(QStringLiteral("Starting local pacwallet service...")), 3000);
+        return;
+    }
     m_api.fetchOverview();
 }
 
 void MainWindow::showError(const QString &operation, const QString &message)
 {
+    if (operation == QStringLiteral("overview") &&
+        !m_windowClosing &&
+        !m_backendAutoStartPending) {
+        ensureLocalBackendRunning();
+        if (m_backendAutoStartPending) {
+            statusBar()->showMessage(l10n::text(QStringLiteral("Starting local pacwallet service...")), 3000);
+            return;
+        }
+    }
     if (operation == QStringLiteral("overview") || operation == QStringLiteral("receive-qr")) {
         statusBar()->showMessage(QStringLiteral("%1 failed: %2").arg(operation, message), 5000);
         m_settingsPage->appendLog(QStringLiteral("%1 failed: %2").arg(operation, message));
@@ -365,19 +385,22 @@ void MainWindow::saveSettings() const
 
 void MainWindow::ensureLocalBackendRunning()
 {
-    if (!isLocalBackendURL(m_api.baseUrl()) || m_service.isRunning()) {
+    if (!isLocalBackendURL(m_api.baseUrl()) || m_service.isRunning() || m_backendAutoStartPending) {
         return;
     }
     const QFileInfo backendInfo(m_service.program());
     if (!backendInfo.exists()) {
         return;
     }
+    m_backendAutoStartPending = true;
     m_service.start();
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
+    m_windowClosing = true;
     saveSettings();
+    m_service.stop();
     QMainWindow::closeEvent(event);
 }
 
