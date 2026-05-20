@@ -158,8 +158,10 @@ MainWindow::MainWindow(QWidget *parent)
     connect(&m_service, &ServiceController::serviceLog, m_settingsPage, &SettingsPage::appendLog);
     connect(&m_service, &ServiceController::serviceError, this, [this](const QString &message) {
         m_backendAutoStartPending = false;
-        showError(QStringLiteral("service"), message);
-        m_settingsPage->appendLog(message);
+        const QString detail = l10n::text(QStringLiteral("Local pacwallet service failed to start from %1: %2"))
+            .arg(QDir::toNativeSeparators(m_service.program()), message);
+        showError(QStringLiteral("service"), detail);
+        m_settingsPage->appendLog(detail);
     });
     connect(&m_service, &ServiceController::serviceStarted, this, [this]() {
         m_backendAutoStartPending = false;
@@ -301,6 +303,10 @@ void MainWindow::refreshOverview()
         statusBar()->showMessage(l10n::text(QStringLiteral("Starting local pacwallet service...")), 3000);
         return;
     }
+    if (isLocalBackendURL(m_api.baseUrl()) && !m_service.isRunning()) {
+        statusBar()->showMessage(l10n::text(QStringLiteral("Waiting for local pacwallet service...")), 3000);
+        return;
+    }
     m_api.fetchOverview();
 }
 
@@ -312,6 +318,10 @@ void MainWindow::showError(const QString &operation, const QString &message)
         ensureLocalBackendRunning();
         if (m_backendAutoStartPending) {
             statusBar()->showMessage(l10n::text(QStringLiteral("Starting local pacwallet service...")), 3000);
+            return;
+        }
+        if (isLocalBackendURL(m_api.baseUrl()) && !m_service.isRunning()) {
+            reportBackendUnavailable(backendStartupHint());
             return;
         }
     }
@@ -390,10 +400,23 @@ void MainWindow::ensureLocalBackendRunning()
     }
     const QFileInfo backendInfo(m_service.program());
     if (!backendInfo.exists()) {
+        reportBackendUnavailable(backendStartupHint());
         return;
     }
     m_backendAutoStartPending = true;
     m_service.start();
+}
+
+QString MainWindow::backendStartupHint() const
+{
+    return l10n::text(QStringLiteral("Local pacwallet backend was not found at %1. Open Settings and update the backend path, or reopen the bundled wallet folder."))
+        .arg(QDir::toNativeSeparators(m_service.program()));
+}
+
+void MainWindow::reportBackendUnavailable(const QString &reason)
+{
+    statusBar()->showMessage(reason, 8000);
+    m_settingsPage->appendLog(reason);
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)

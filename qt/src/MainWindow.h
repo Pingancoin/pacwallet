@@ -44,6 +44,8 @@ private:
     void loadSettings();
     void saveSettings() const;
     void ensureLocalBackendRunning();
+    QString backendStartupHint() const;
+    void reportBackendUnavailable(const QString &reason);
     static QString defaultBackendProgram();
     static QStringList defaultBackendArguments();
     static QString defaultBackendURL();
