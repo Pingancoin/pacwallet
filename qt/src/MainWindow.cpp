@@ -173,6 +173,10 @@ MainWindow::MainWindow(QWidget *parent)
         m_backendAutoStartPending = false;
         statusBar()->showMessage(l10n::text(QStringLiteral("Local pacwallet service stopped.")), 3000);
     });
+    connect(qApp, &QCoreApplication::aboutToQuit, this, [this]() {
+        m_windowClosing = true;
+        m_service.stop();
+    });
 
     m_refreshTimer.setInterval(15000);
     connect(&m_refreshTimer, &QTimer::timeout, this, &MainWindow::refreshOverview);
