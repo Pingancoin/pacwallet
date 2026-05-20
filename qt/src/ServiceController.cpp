@@ -1,5 +1,7 @@
 #include "ServiceController.h"
 
+#include <QFileInfo>
+
 namespace pacqt {
 
 ServiceController::ServiceController(QObject *parent)
@@ -53,6 +55,10 @@ void ServiceController::start()
     }
     if (isRunning()) {
         return;
+    }
+    const QFileInfo programInfo(m_program);
+    if (programInfo.exists()) {
+        m_process.setWorkingDirectory(programInfo.absolutePath());
     }
     m_process.start(m_program, m_arguments);
 }

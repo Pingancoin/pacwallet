@@ -324,7 +324,7 @@ func balance(args []string) error {
 	flags := newFlagSet("balance")
 	network := flags.String("network", "simnet", "network to use: mainnet, testnet, simnet")
 	walletDir := flags.String("walletdir", wallet.DefaultDir(), "base wallet directory")
-	rpcURL := flags.String("rpc", "http://127.0.0.1:9509", "pacd RPC URL")
+	rpcURL := flags.String("rpc", "http://rpc.pingancoin.org/rpc", "pacd RPC URL")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -358,7 +358,7 @@ func history(args []string) error {
 	flags := newFlagSet("history")
 	network := flags.String("network", "simnet", "network to use: mainnet, testnet, simnet")
 	walletDir := flags.String("walletdir", wallet.DefaultDir(), "base wallet directory")
-	rpcURL := flags.String("rpc", "http://127.0.0.1:9509", "pacd RPC URL")
+	rpcURL := flags.String("rpc", "http://rpc.pingancoin.org/rpc", "pacd RPC URL")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -394,7 +394,7 @@ func draftTx(args []string) error {
 	flags := newFlagSet("drafttx")
 	network := flags.String("network", "simnet", "network to use: mainnet, testnet, simnet")
 	walletDir := flags.String("walletdir", wallet.DefaultDir(), "base wallet directory")
-	rpcURL := flags.String("rpc", "http://127.0.0.1:9509", "pacd RPC URL")
+	rpcURL := flags.String("rpc", "http://rpc.pingancoin.org/rpc", "pacd RPC URL")
 	to := flags.String("to", "", "destination address")
 	amountText := flags.String("amount", "", "amount in PAC")
 	feeText := flags.String("fee", "0.0001", "fee in PAC")
@@ -463,7 +463,7 @@ func send(args []string) error {
 	flags := newFlagSet("send")
 	network := flags.String("network", "simnet", "network to use: mainnet, testnet, simnet")
 	walletDir := flags.String("walletdir", wallet.DefaultDir(), "base wallet directory")
-	rpcURL := flags.String("rpc", "http://127.0.0.1:9509", "pacd RPC URL")
+	rpcURL := flags.String("rpc", "http://rpc.pingancoin.org/rpc", "pacd RPC URL")
 	to := flags.String("to", "", "destination address")
 	amountText := flags.String("amount", "", "amount in PAC")
 	feeText := flags.String("fee", "0.0001", "fee in PAC")
@@ -520,7 +520,7 @@ func serve(args []string) error {
 	flags := newFlagSet("serve")
 	network := flags.String("network", "simnet", "network to use: mainnet, testnet, simnet")
 	walletDir := flags.String("walletdir", wallet.DefaultDir(), "base wallet directory")
-	rpcURL := flags.String("rpc", "http://127.0.0.1:9509", "pacd RPC URL")
+	rpcURL := flags.String("rpc", "http://rpc.pingancoin.org/rpc", "pacd RPC URL")
 	listen := flags.String("listen", "127.0.0.1:19709", "wallet service listen address")
 	if err := flags.Parse(args); err != nil {
 		return err

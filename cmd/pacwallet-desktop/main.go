@@ -37,7 +37,7 @@ func run() error {
 	flags.SetOutput(os.Stderr)
 	network := flags.String("network", "simnet", "network to use: mainnet, testnet, simnet")
 	walletDir := flags.String("walletdir", wallet.DefaultDir(), "base wallet directory")
-	rpcURL := flags.String("rpc", "http://127.0.0.1:9509", "pacd RPC URL")
+	rpcURL := flags.String("rpc", "http://rpc.pingancoin.org/rpc", "pacd RPC URL")
 	listen := flags.String("listen", "127.0.0.1:0", "desktop wallet service listen address")
 	browser := flags.String("browser", "auto", "launcher preference: auto, edge, chrome, system, none")
 	title := flags.String("title", defaultDesktopTitle, "desktop window title used by browser app launchers")

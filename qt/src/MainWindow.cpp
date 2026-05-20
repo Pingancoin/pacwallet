@@ -22,7 +22,7 @@ namespace {
 
 constexpr int kDefaultWindowWidth = 1024;
 constexpr int kDefaultWindowHeight = 648;
-constexpr auto kDefaultRPCPrimary = "http://115.190.57.12/rpc";
+constexpr auto kDefaultRPCPrimary = "http://rpc.pingancoin.org/rpc";
 
 QString backendExecutableName()
 {
@@ -174,13 +174,11 @@ MainWindow::MainWindow(QWidget *parent)
         statusBar()->showMessage(l10n::text(QStringLiteral("Local pacwallet service stopped.")), 3000);
     });
 
-    ensureLocalBackendRunning();
-
     m_refreshTimer.setInterval(15000);
     connect(&m_refreshTimer, &QTimer::timeout, this, &MainWindow::refreshOverview);
     m_refreshTimer.start();
 
-    refreshOverview();
+    QTimer::singleShot(0, this, &MainWindow::refreshOverview);
 }
 
 void MainWindow::buildUi()
@@ -447,6 +445,7 @@ void MainWindow::showEvent(QShowEvent *event)
             setMinimumSize(880, 620);
             setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
             resize(kDefaultWindowWidth, kDefaultWindowHeight);
+            refreshOverview();
         });
         m_initialSizeApplied = true;
     }

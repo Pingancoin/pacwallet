@@ -752,15 +752,15 @@ func (s *Service) bootstrapUpstreams() {
 	}
 	defaultURL := normalizeRPCURL(s.rpcURL)
 	if defaultURL == "" {
-		defaultURL = "http://127.0.0.1:9509"
+		defaultURL = "http://rpc.pingancoin.org/rpc"
 	}
 	cfg = upstreamFile{
 		ActiveID: "local-node",
 		Profiles: []UpstreamProfile{{
 			ID:     "local-node",
-			Name:   "Local Node",
+			Name:   "Official RPC",
 			URL:    defaultURL,
-			Source: "local",
+			Source: "official",
 		}},
 	}
 	s.rpcURL = defaultURL
