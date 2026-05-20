@@ -17,6 +17,7 @@ qt_add_executable(pacwallet-qt
     MACOSX_BUNDLE
     src/main.cpp
     src/ApiClient.cpp
+    src/Localization.cpp
     src/MainWindow.cpp
     src/ServiceController.cpp
     src/pages/MultisigPage.cpp

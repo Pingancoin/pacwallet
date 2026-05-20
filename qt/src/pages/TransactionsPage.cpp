@@ -1,7 +1,9 @@
 #include "TransactionsPage.h"
+#include "../Localization.h"
 
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QLabel>
 #include <QSplitter>
 #include <QVBoxLayout>
 
@@ -11,12 +13,17 @@ TransactionsPage::TransactionsPage(QWidget *parent)
     : QWidget(parent)
 {
     auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(12);
     auto *toolbar = new QHBoxLayout();
+    toolbar->setSpacing(8);
     m_filterCombo = new QComboBox(this);
     m_filterCombo->addItems({QStringLiteral("All"), QStringLiteral("Received"), QStringLiteral("Sent"), QStringLiteral("Coinbase"), QStringLiteral("Pending")});
     m_searchEdit = new QLineEdit(this);
     m_searchEdit->setPlaceholderText(QStringLiteral("Search txid or address"));
-    toolbar->addWidget(new QLabel(QStringLiteral("Filter"), this));
+    auto *filterLabel = new QLabel(QStringLiteral("Filter"), this);
+    filterLabel->setObjectName(QStringLiteral("transactionsFilterLabel"));
+    toolbar->addWidget(filterLabel);
     toolbar->addWidget(m_filterCombo);
     toolbar->addWidget(m_searchEdit, 1);
 
@@ -29,6 +36,8 @@ TransactionsPage::TransactionsPage(QWidget *parent)
     m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_table->setAlternatingRowColors(true);
+    m_table->verticalHeader()->setDefaultSectionSize(30);
 
     m_detailView = new QTextEdit(this);
     m_detailView->setReadOnly(true);
@@ -54,6 +63,7 @@ TransactionsPage::TransactionsPage(QWidget *parent)
             emit transactionSelected(item->text());
         }
     });
+    retranslateUi();
 }
 
 void TransactionsPage::setOverview(const pacqt::Overview &overview)
@@ -64,29 +74,68 @@ void TransactionsPage::setOverview(const pacqt::Overview &overview)
 
 void TransactionsPage::setTransactionDetail(const pacqt::TransactionDetail &detail)
 {
+    m_detail = detail;
+    m_hasDetail = true;
     QString text;
-    text += QStringLiteral("TxID: %1\n").arg(detail.txHash);
-    text += QStringLiteral("Confirmations: %1\n").arg(detail.confirmations);
-    text += QStringLiteral("Net: %1 PAC\n\n").arg(formatPac(detail.net));
-    text += QStringLiteral("Inputs:\n");
+    text += l10n::text(QStringLiteral("TxID: %1\n")).arg(detail.txHash);
+    text += l10n::text(QStringLiteral("Confirmations: %1\n")).arg(detail.confirmations);
+    text += l10n::text(QStringLiteral("Net: %1 PAC\n\n")).arg(formatPac(detail.net));
+    text += l10n::text(QStringLiteral("Inputs:\n"));
     for (const TxInputDetail &input : detail.inputs) {
         text += QStringLiteral("- %1:%2  %3  %4 PAC\n")
                     .arg(input.prevTxHash, QString::number(input.prevVout), input.address, formatPac(input.value));
     }
-    text += QStringLiteral("\nOutputs:\n");
+    text += l10n::text(QStringLiteral("\nOutputs:\n"));
     for (const TxOutputDetail &output : detail.outputs) {
         text += QStringLiteral("- #%1  %2  %3 PAC  %4\n")
                     .arg(output.index)
                     .arg(output.address)
                     .arg(formatPac(output.value))
-                    .arg(output.spent ? QStringLiteral("spent") : QStringLiteral("unspent"));
+                    .arg(output.spent ? l10n::text(QStringLiteral("spent")) : l10n::text(QStringLiteral("unspent")));
     }
     m_detailView->setPlainText(text);
 }
 
+void TransactionsPage::retranslateUi()
+{
+    m_filterCombo->blockSignals(true);
+    const QString currentValue = m_filterCombo->currentData().toString().isEmpty()
+        ? m_filterCombo->currentText()
+        : m_filterCombo->currentData().toString();
+    m_filterCombo->clear();
+    const QStringList filters{QStringLiteral("All"), QStringLiteral("Received"), QStringLiteral("Sent"), QStringLiteral("Coinbase"), QStringLiteral("Pending")};
+    for (const QString &value : filters) {
+        m_filterCombo->addItem(l10n::text(value), value);
+    }
+    int index = m_filterCombo->findData(currentValue);
+    if (index < 0) {
+        index = 0;
+    }
+    m_filterCombo->setCurrentIndex(index);
+    m_filterCombo->blockSignals(false);
+    m_searchEdit->setPlaceholderText(l10n::text(QStringLiteral("Search txid or address")));
+    if (auto *filterLabel = findChild<QLabel *>(QStringLiteral("transactionsFilterLabel"))) {
+        filterLabel->setText(l10n::text(QStringLiteral("Filter")));
+    }
+    m_table->setHorizontalHeaderLabels({
+        QStringLiteral("TxID"),
+        l10n::text(QStringLiteral("Height")),
+        l10n::text(QStringLiteral("Status")),
+        l10n::text(QStringLiteral("Direction")),
+        QStringLiteral("Net"),
+        l10n::text(QStringLiteral("Addresses"))
+    });
+    if (!m_hasDetail) {
+        m_detailView->setPlainText(l10n::text(QStringLiteral("Select a transaction to inspect details.")));
+    } else {
+        setTransactionDetail(m_detail);
+    }
+    refreshDisplayedHistory();
+}
+
 void TransactionsPage::refreshDisplayedHistory()
 {
-    const QString filter = m_filterCombo->currentText();
+    const QString filter = m_filterCombo->currentData().toString();
     const QString needle = m_searchEdit->text().trimmed().toLower();
 
     QVector<HistoryEntry> displayed;
@@ -114,10 +163,10 @@ void TransactionsPage::refreshDisplayedHistory()
     m_table->setRowCount(displayed.size());
     for (int i = 0; i < displayed.size(); ++i) {
         const HistoryEntry &entry = displayed.at(i);
-        const QString direction = entry.coinbase ? QStringLiteral("Coinbase") : (entry.net >= 0 ? QStringLiteral("Incoming") : QStringLiteral("Outgoing"));
+        const QString direction = entry.coinbase ? l10n::text(QStringLiteral("Coinbase")) : (entry.net >= 0 ? l10n::text(QStringLiteral("Incoming")) : l10n::text(QStringLiteral("Outgoing")));
         m_table->setItem(i, 0, new QTableWidgetItem(entry.txHash));
         m_table->setItem(i, 1, new QTableWidgetItem(QString::number(entry.height)));
-        m_table->setItem(i, 2, new QTableWidgetItem(entry.pending ? QStringLiteral("Pending") : QStringLiteral("Confirmed")));
+        m_table->setItem(i, 2, new QTableWidgetItem(entry.pending ? l10n::text(QStringLiteral("Pending")) : l10n::text(QStringLiteral("Confirmed"))));
         m_table->setItem(i, 3, new QTableWidgetItem(direction));
         m_table->setItem(i, 4, new QTableWidgetItem(formatPac(entry.net) + QStringLiteral(" PAC")));
         m_table->setItem(i, 5, new QTableWidgetItem(entry.addresses.join(QStringLiteral(", "))));

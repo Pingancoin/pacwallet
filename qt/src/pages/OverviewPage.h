@@ -2,6 +2,7 @@
 
 #include "../Models.h"
 
+#include <QGroupBox>
 #include <QLabel>
 #include <QTableWidget>
 #include <QWidget>
@@ -15,8 +16,14 @@ class OverviewPage : public QWidget
 public:
     explicit OverviewPage(QWidget *parent = nullptr);
     void setOverview(const pacqt::Overview &overview);
+    void retranslateUi();
 
 private:
+    bool m_hasOverview = false;
+    pacqt::Overview m_overview;
+    QGroupBox *m_summaryBox;
+    QVector<QLabel *> m_metricNameLabels;
+    QVector<QLabel *> m_metricValueLabels;
     QLabel *m_totalLabel;
     QLabel *m_spendableLabel;
     QLabel *m_immatureLabel;

@@ -4,6 +4,7 @@
 
 #include <QCheckBox>
 #include <QComboBox>
+#include <QGroupBox>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -24,12 +25,15 @@ public:
     void setBackendProgram(const QString &program);
     void setBackendArguments(const QStringList &arguments);
     void setOverview(const pacqt::Overview &overview);
+    void setCurrentLanguageCode(const QString &code);
+    void retranslateUi();
     QString backendUrl() const;
     QString backendProgram() const;
     QStringList backendArguments() const;
     void appendLog(const QString &line);
 
 signals:
+    void appLanguageChanged(const QString &code);
     void backendUrlChanged(const QString &url);
     void startBackendRequested(const QString &program, const QStringList &arguments);
     void stopBackendRequested();
@@ -40,12 +44,24 @@ signals:
     void selectUpstreamRequested(const QString &id);
 
 private:
+    bool m_hasOverview = false;
+    pacqt::Overview m_overview;
+    QString m_languageCode;
     QString m_walletPath;
     QString m_backupDir;
+    QGroupBox *m_statusBox;
+    QGroupBox *m_appearanceBox;
+    QGroupBox *m_upstreamBox;
+    QGroupBox *m_backendBox;
+    QGroupBox *m_processBox;
+    QGroupBox *m_securityBox;
+    QGroupBox *m_importBox;
+    QGroupBox *m_backupBox;
     QLabel *m_walletPathLabel;
     QLabel *m_walletStateLabel;
     QLabel *m_nodeStatusLabel;
     QLabel *m_activeUpstreamLabel;
+    QComboBox *m_languageCombo;
     QComboBox *m_upstreamCombo;
     QLineEdit *m_upstreamNameEdit;
     QLineEdit *m_upstreamUrlEdit;
@@ -61,6 +77,16 @@ private:
     QLineEdit *m_programEdit;
     QLineEdit *m_argumentsEdit;
     QTextEdit *m_logView;
+    QPushButton *m_openWalletPathButton;
+    QPushButton *m_openBackupPathButton;
+    QPushButton *m_activateUpstreamButton;
+    QPushButton *m_addUpstreamButton;
+    QPushButton *m_applyUrlButton;
+    QPushButton *m_startBackendButton;
+    QPushButton *m_stopBackendButton;
+    QPushButton *m_encryptButton;
+    QPushButton *m_changePassphraseButton;
+    QPushButton *m_importButton;
 };
 
 } // namespace pacqt

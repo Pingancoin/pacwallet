@@ -16,6 +16,7 @@
 #include <QTimer>
 
 class QCloseEvent;
+class QShowEvent;
 
 namespace pacqt {
 
@@ -28,8 +29,14 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    void showEvent(QShowEvent *event) override;
 
 private:
+    QString pageTitleForIndex(int index) const;
+    QString pageSubtitleForIndex(int index) const;
+    void updatePageHeader(int index);
+    void applyLanguage(const QString &code, bool persist = true);
+    void retranslateUi();
     void buildUi();
     void refreshOverview();
     void showError(const QString &operation, const QString &message);
@@ -40,8 +47,14 @@ private:
     ApiClient m_api;
     ServiceController m_service;
     bool m_walletAvailable = false;
+    bool m_initialSizeApplied = false;
+    QString m_languageCode;
 
+    QLabel *m_brandLabel;
+    QLabel *m_brandSubLabel;
     QListWidget *m_nav;
+    QLabel *m_pageTitleLabel;
+    QLabel *m_pageSubtitleLabel;
     QStackedWidget *m_stack;
     WelcomePage *m_welcomePage;
     OverviewPage *m_overviewPage;

@@ -1,7 +1,10 @@
 #pragma once
 
+#include <QGroupBox>
 #include <QCheckBox>
+#include <QLabel>
 #include <QLineEdit>
+#include <QPushButton>
 #include <QTextEdit>
 #include <QWidget>
 
@@ -13,15 +16,23 @@ class WelcomePage : public QWidget
 
 public:
     explicit WelcomePage(QWidget *parent = nullptr);
+    void retranslateUi();
 
 signals:
     void createWalletRequested(const QString &passphrase);
     void restoreWalletRequested(const QString &walletJson, bool overwrite);
 
 private:
+    QLabel *m_heroLabel;
+    QLabel *m_subLabel;
+    QGroupBox *m_createBox;
+    QGroupBox *m_restoreBox;
     QLineEdit *m_passphraseEdit;
     QTextEdit *m_restoreEdit;
     QCheckBox *m_overwriteCheck;
+    QPushButton *m_createButton;
+    QPushButton *m_browseButton;
+    QPushButton *m_restoreButton;
 };
 
 } // namespace pacqt
