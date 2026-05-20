@@ -33,6 +33,36 @@ QString backendExecutableName()
 #endif
 }
 
+bool shouldMigrateBackendProgram(const QString &program)
+{
+    if (program.trimmed().isEmpty()) {
+        return true;
+    }
+    const QFileInfo saved(program);
+    const QString savedName = saved.fileName().toLower();
+    const QString expectedName = backendExecutableName().toLower();
+    if (savedName != expectedName) {
+        return false;
+    }
+    const QString bundled = QFileInfo(QDir(QCoreApplication::applicationDirPath()).filePath(backendExecutableName())).absoluteFilePath();
+    return saved.absoluteFilePath() != bundled;
+}
+
+bool shouldMigrateBackendArguments(const QStringList &arguments)
+{
+    if (arguments.isEmpty()) {
+        return true;
+    }
+    const QString joined = arguments.join(' ');
+    if (!joined.contains(QStringLiteral("--walletdir"))) {
+        return true;
+    }
+    if (joined.contains(QStringLiteral("http://127.0.0.1:9509"))) {
+        return true;
+    }
+    return false;
+}
+
 }
 
 MainWindow::MainWindow(QWidget *parent)
@@ -290,10 +320,24 @@ void MainWindow::loadSettings()
 {
     QSettings settings(QStringLiteral("Pingancoin"), QStringLiteral("pacwallet-qt"));
     const QString languageCode = settings.value(QStringLiteral("ui/language"), l10n::defaultLanguageCode()).toString();
-    const QString backendUrl = settings.value(QStringLiteral("backend/url"), defaultBackendURL()).toString();
-    const QString backendProgram = settings.value(QStringLiteral("backend/program"), defaultBackendProgram()).toString();
-    const QStringList backendArguments = settings.value(QStringLiteral("backend/arguments"),
+    QString backendUrl = settings.value(QStringLiteral("backend/url"), defaultBackendURL()).toString();
+    QString backendProgram = settings.value(QStringLiteral("backend/program"), defaultBackendProgram()).toString();
+    QStringList backendArguments = settings.value(QStringLiteral("backend/arguments"),
         defaultBackendArguments()).toStringList();
+
+    bool migrated = false;
+    if (shouldMigrateBackendProgram(backendProgram)) {
+        backendProgram = defaultBackendProgram();
+        migrated = true;
+    }
+    if (shouldMigrateBackendArguments(backendArguments)) {
+        backendArguments = defaultBackendArguments();
+        migrated = true;
+    }
+    if (!isLocalBackendURL(QUrl(backendUrl))) {
+        backendUrl = defaultBackendURL();
+        migrated = true;
+    }
 
     m_api.setBaseUrl(QUrl(backendUrl));
     m_service.setProgram(backendProgram);
@@ -304,6 +348,9 @@ void MainWindow::loadSettings()
     m_settingsPage->setBackendArguments(backendArguments);
     restoreGeometry(settings.value(QStringLiteral("window/geometry")).toByteArray());
     resize(kDefaultWindowWidth, kDefaultWindowHeight);
+    if (migrated) {
+        saveSettings();
+    }
 }
 
 void MainWindow::saveSettings() const
