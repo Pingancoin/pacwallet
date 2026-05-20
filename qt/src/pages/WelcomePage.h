@@ -17,6 +17,7 @@ class WelcomePage : public QWidget
 public:
     explicit WelcomePage(QWidget *parent = nullptr);
     void retranslateUi();
+    void setWalletExists(bool exists, const QString &path = QString());
 
 signals:
     void createWalletRequested(const QString &passphrase);

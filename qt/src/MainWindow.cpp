@@ -73,6 +73,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(&m_api, &ApiClient::overviewReady, this, [this](const Overview &overview) {
         m_walletAvailable = overview.wallet.exists;
+        m_welcomePage->setWalletExists(overview.wallet.exists, overview.wallet.path);
         setWalletAvailable(overview.wallet.exists);
         m_overviewPage->setOverview(overview);
         m_receivePage->setOverview(overview);
@@ -324,6 +325,16 @@ void MainWindow::showError(const QString &operation, const QString &message)
             reportBackendUnavailable(backendStartupHint());
             return;
         }
+    }
+    if (operation == QStringLiteral("create-wallet") &&
+        message.contains(QStringLiteral("wallet already exists"), Qt::CaseInsensitive)) {
+        statusBar()->showMessage(l10n::text(QStringLiteral("A local wallet already exists. Opened the current wallet instead.")), 5000);
+        m_settingsPage->appendLog(QStringLiteral("%1 failed: %2").arg(operation, message));
+        refreshOverview();
+        if (m_walletAvailable) {
+            m_nav->setCurrentRow(1);
+        }
+        return;
     }
     if (operation == QStringLiteral("overview") || operation == QStringLiteral("receive-qr")) {
         statusBar()->showMessage(QStringLiteral("%1 failed: %2").arg(operation, message), 5000);

@@ -10,6 +10,8 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
+#include <QString>
+
 namespace pacqt {
 
 WelcomePage::WelcomePage(QWidget *parent)
@@ -44,6 +46,7 @@ WelcomePage::WelcomePage(QWidget *parent)
     createLayout->addRow(QString(), m_createButton);
 
     m_restoreBox = new QGroupBox(QStringLiteral("Restore Existing Wallet"), this);
+    m_createButton->setObjectName(QStringLiteral("welcomeCreateButton"));
     auto *restoreLayout = new QVBoxLayout(m_restoreBox);
     restoreLayout->setSpacing(12);
     m_restoreEdit = new QTextEdit(this);
@@ -82,6 +85,23 @@ WelcomePage::WelcomePage(QWidget *parent)
     retranslateUi();
 }
 
+void WelcomePage::setWalletExists(bool exists, const QString &path)
+{
+    m_passphraseEdit->setEnabled(!exists);
+    m_createButton->setEnabled(!exists);
+    if (auto *createHint = findChild<QLabel *>(QStringLiteral("welcomeCreateHint"))) {
+        if (exists) {
+            createHint->setText(l10n::text(QStringLiteral("A local wallet is already loaded from %1. Open Overview to use it, or restore another wallet with overwrite enabled."))
+                .arg(path.isEmpty() ? l10n::text(QStringLiteral("the current wallet folder")) : path));
+        } else {
+            createHint->setText(l10n::text(QStringLiteral("Create and restore")));
+        }
+    }
+    m_createButton->setText(exists
+        ? l10n::text(QStringLiteral("Wallet Already Exists"))
+        : l10n::text(QStringLiteral("Create Wallet")));
+}
+
 void WelcomePage::retranslateUi()
 {
     m_heroLabel->setText(l10n::text(QStringLiteral("Set up Pingancoin Wallet")));
@@ -98,7 +118,9 @@ void WelcomePage::retranslateUi()
     m_passphraseEdit->setPlaceholderText(l10n::text(QStringLiteral("Passphrase")));
     m_restoreEdit->setPlaceholderText(l10n::text(QStringLiteral("Paste wallet.json contents here")));
     if (auto *createHint = findChild<QLabel *>(QStringLiteral("welcomeCreateHint"))) {
-        createHint->setText(l10n::text(QStringLiteral("Create and restore")));
+        if (m_createButton->isEnabled()) {
+            createHint->setText(l10n::text(QStringLiteral("Create and restore")));
+        }
     }
     m_overwriteCheck->setText(l10n::text(QStringLiteral("Overwrite any existing local wallet and archive it first")));
     m_createButton->setText(l10n::text(QStringLiteral("Create Wallet")));

@@ -2,6 +2,7 @@
 
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QNetworkReply>
 #include <functional>
 
@@ -200,7 +201,17 @@ void ApiClient::handleJsonPost(const QString &operation, const QString &path, co
     connect(reply, &QNetworkReply::finished, this, [this, reply, operation, onSuccess]() {
         const QByteArray data = reply->readAll();
         if (reply->error() != QNetworkReply::NoError) {
-            emit requestFailed(operation, reply->errorString());
+            QString message = reply->errorString();
+            const QJsonDocument doc = QJsonDocument::fromJson(data);
+            if (doc.isObject()) {
+                const QString apiError = doc.object().value(QStringLiteral("error")).toString().trimmed();
+                if (!apiError.isEmpty()) {
+                    message = apiError;
+                }
+            } else if (!QString::fromUtf8(data).trimmed().isEmpty()) {
+                message = QString::fromUtf8(data).trimmed();
+            }
+            emit requestFailed(operation, message);
         } else {
             onSuccess(data);
         }
