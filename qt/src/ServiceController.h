@@ -33,6 +33,7 @@ private:
     QProcess m_process;
     QString m_program;
     QStringList m_arguments;
+    bool m_stopping = false;
 };
 
 } // namespace pacqt

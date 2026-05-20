@@ -15,9 +15,13 @@ ServiceController::ServiceController(QObject *parent)
         emit serviceLog(QString::fromUtf8(m_process.readAllStandardError()));
     });
     connect(&m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
+        if (m_stopping) {
+            return;
+        }
         emit serviceError(m_process.errorString());
     });
     connect(&m_process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this, [this]() {
+        m_stopping = false;
         emit serviceStopped();
     });
 }
@@ -56,6 +60,7 @@ void ServiceController::start()
     if (isRunning()) {
         return;
     }
+    m_stopping = false;
     const QFileInfo programInfo(m_program);
     if (programInfo.exists()) {
         m_process.setWorkingDirectory(programInfo.absolutePath());
@@ -68,9 +73,11 @@ void ServiceController::stop()
     if (!isRunning()) {
         return;
     }
+    m_stopping = true;
     m_process.terminate();
     if (!m_process.waitForFinished(3000)) {
         m_process.kill();
+        (void)m_process.waitForFinished(1000);
     }
 }
 

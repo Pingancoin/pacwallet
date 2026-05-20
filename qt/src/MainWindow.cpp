@@ -159,6 +159,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(&m_service, &ServiceController::serviceLog, m_settingsPage, &SettingsPage::appendLog);
     connect(&m_service, &ServiceController::serviceError, this, [this](const QString &message) {
         m_backendAutoStartPending = false;
+        if (m_windowClosing) {
+            return;
+        }
         const QString detail = l10n::text(QStringLiteral("Local pacwallet service failed to start from %1: %2"))
             .arg(QDir::toNativeSeparators(m_service.program()), message);
         showError(QStringLiteral("service"), detail);
