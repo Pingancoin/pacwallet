@@ -43,6 +43,11 @@ private:
     void setWalletAvailable(bool available);
     void loadSettings();
     void saveSettings() const;
+    void ensureLocalBackendRunning();
+    static QString defaultBackendProgram();
+    static QStringList defaultBackendArguments();
+    static QString defaultBackendURL();
+    static bool isLocalBackendURL(const QUrl &url);
 
     ApiClient m_api;
     ServiceController m_service;

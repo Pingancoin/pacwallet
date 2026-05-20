@@ -7,6 +7,8 @@ VERSION="${VERSION:-0.1.0-dev}"
 COMMIT="${COMMIT:-$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)}"
 BUILD_TIME="${BUILD_TIME:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}"
 ARCHIVE_PATH="${ARCHIVE_PATH:-${OUT_DIR}.zip}"
+DEFAULT_RPC_PRIMARY="${DEFAULT_RPC_PRIMARY:-http://115.190.57.12/rpc}"
+DEFAULT_RPC_SECONDARY="${DEFAULT_RPC_SECONDARY:-http://180.184.43.187/rpc}"
 
 LDFLAGS="-X github.com/Pingancoin/pacwallet/internal/buildinfo.Version=${VERSION} -X github.com/Pingancoin/pacwallet/internal/buildinfo.Commit=${COMMIT} -X github.com/Pingancoin/pacwallet/internal/buildinfo.BuildTime=${BUILD_TIME}"
 
@@ -74,45 +76,46 @@ cat >"$OUT_DIR/pacwallet-desktop.json" <<'EOF'
 {
   "network": "mainnet",
   "wallet_dir": "",
-  "rpc_url": "http://127.0.0.1:9509",
+  "rpc_url": "__DEFAULT_RPC_PRIMARY__",
   "listen": "127.0.0.1:19709",
   "browser": "edge",
   "title": "Pingancoin Wallet",
   "upstreams_template": "upstreams.mainnet.template.json"
 }
 EOF
+python3 - <<PY
+from pathlib import Path
+p = Path("$OUT_DIR/pacwallet-desktop.json")
+p.write_text(p.read_text().replace("__DEFAULT_RPC_PRIMARY__", "$DEFAULT_RPC_PRIMARY"))
+PY
 
 cat >"$OUT_DIR/upstreams.mainnet.template.json" <<'EOF'
 {
-  "active_id": "local-node",
+  "active_id": "server1-rpc",
   "profiles": [
-    {
-      "id": "local-node",
-      "name": "Local Node",
-      "url": "http://127.0.0.1:9509",
-      "source": "local"
-    },
     {
       "id": "server1-rpc",
       "name": "Server 1 RPC",
-      "url": "https://server1.pingancoin.org",
+      "url": "__DEFAULT_RPC_PRIMARY__",
       "source": "official"
     },
     {
       "id": "server2-rpc",
       "name": "Server 2 RPC",
-      "url": "https://server2.pingancoin.org",
-      "source": "official"
-    },
-    {
-      "id": "server3-rpc",
-      "name": "Server 3 RPC",
-      "url": "https://server3.pingancoin.org",
+      "url": "__DEFAULT_RPC_SECONDARY__",
       "source": "official"
     }
   ]
 }
 EOF
+python3 - <<PY
+from pathlib import Path
+p = Path("$OUT_DIR/upstreams.mainnet.template.json")
+text = p.read_text()
+text = text.replace("__DEFAULT_RPC_PRIMARY__", "$DEFAULT_RPC_PRIMARY")
+text = text.replace("__DEFAULT_RPC_SECONDARY__", "$DEFAULT_RPC_SECONDARY")
+p.write_text(text)
+PY
 
 cat >"$OUT_DIR/release.json" <<EOF
 {
@@ -146,16 +149,21 @@ setlocal
 if exist "%~dp0pacwallet-desktop.json" (
   start "" "%~dp0pacwallet-desktop.exe" --config "%~dp0pacwallet-desktop.json"
 ) else (
-  start "" "%~dp0pacwallet-desktop.exe" --network mainnet --rpc http://127.0.0.1:9509 --browser edge
+  start "" "%~dp0pacwallet-desktop.exe" --network mainnet --rpc __DEFAULT_RPC_PRIMARY__ --browser edge
 )
 endlocal
 EOF
+python3 - <<PY
+from pathlib import Path
+p = Path("$OUT_DIR/run-pacwallet-desktop.bat")
+p.write_text(p.read_text().replace("__DEFAULT_RPC_PRIMARY__", "$DEFAULT_RPC_PRIMARY"))
+PY
 
 cat >"$OUT_DIR/run-pacwallet-web.bat" <<'EOF'
 @echo off
 setlocal
 set PAC_RPC_URL=%PAC_RPC_URL%
-if "%PAC_RPC_URL%"=="" set PAC_RPC_URL=http://127.0.0.1:9509
+if "%PAC_RPC_URL%"=="" set PAC_RPC_URL=__DEFAULT_RPC_PRIMARY__
 
 set PAC_NETWORK=%PAC_NETWORK%
 if "%PAC_NETWORK%"=="" set PAC_NETWORK=mainnet
@@ -166,6 +174,11 @@ if "%PAC_LISTEN%"=="" set PAC_LISTEN=127.0.0.1:19709
 "%~dp0pacwallet.exe" serve --network %PAC_NETWORK% --rpc %PAC_RPC_URL% --listen %PAC_LISTEN%
 endlocal
 EOF
+python3 - <<PY
+from pathlib import Path
+p = Path("$OUT_DIR/run-pacwallet-web.bat")
+p.write_text(p.read_text().replace("__DEFAULT_RPC_PRIMARY__", "$DEFAULT_RPC_PRIMARY"))
+PY
 
 cat >"$OUT_DIR/WINDOWS_RELEASE_NOTES.txt" <<'EOF'
 Pingancoin Wallet Windows Release
@@ -186,19 +199,23 @@ Files:
 - run-pacwallet-web.bat: convenience launcher for browser-hosted mode
 
 Recommended setup:
-1. Start pacd with RPC enabled.
-2. Review pacwallet-desktop.json and set rpc_url if needed.
-3. Double-click run-pacwallet-desktop.bat.
-4. The desktop launcher imports upstreams.mainnet.template.json automatically on first run.
-5. On first run, create or restore wallet.json.
-6. Run build-installer.bat on a Windows packaging machine with Inno Setup 6 installed.
-7. Sign the exe and installer with your code-signing certificate.
+1. Double-click run-pacwallet-desktop.bat.
+2. On first run, create or restore wallet.json.
+3. The wallet file is stored locally under %USERPROFILE%\.pacwallet\mainnet\wallet.json.
+4. The desktop launcher talks to the official node RPC upstream configured in pacwallet-desktop.json.
+5. Run build-installer.bat on a Windows packaging machine with Inno Setup 6 installed.
+6. Sign the exe and installer with your code-signing certificate.
 
 Environment overrides:
-- PAC_RPC_URL=http://127.0.0.1:9509
+- PAC_RPC_URL=__DEFAULT_RPC_PRIMARY__
 - PAC_NETWORK=mainnet
 - PAC_LISTEN=127.0.0.1:19709
 EOF
+python3 - <<PY
+from pathlib import Path
+p = Path("$OUT_DIR/WINDOWS_RELEASE_NOTES.txt")
+p.write_text(p.read_text().replace("__DEFAULT_RPC_PRIMARY__", "$DEFAULT_RPC_PRIMARY"))
+PY
 
 if command -v ditto >/dev/null 2>&1; then
   rm -f "$ARCHIVE_PATH"

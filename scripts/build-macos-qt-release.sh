@@ -31,6 +31,7 @@ if [[ ! -d "$APP_BUNDLE" ]]; then
 fi
 
 cp -R "$APP_BUNDLE" "$OUT_DIR/"
+GOOS=darwin GOARCH=arm64 go build -ldflags "-X github.com/Pingancoin/pacwallet/internal/buildinfo.Version=${VERSION} -X github.com/Pingancoin/pacwallet/internal/buildinfo.Commit=${COMMIT} -X github.com/Pingancoin/pacwallet/internal/buildinfo.BuildTime=${BUILD_TIME}" -o "$OUT_DIR/pacwallet-qt.app/Contents/MacOS/pacwallet" ./cmd/pacwallet
 "$MACDEPLOYQT" "$OUT_DIR/pacwallet-qt.app" -verbose=1
 
 cp "$ROOT/README.md" "$OUT_DIR/README.md"
@@ -46,6 +47,7 @@ cat >"$OUT_DIR/release.json" <<EOF
   "platform": "macos-native-qt",
   "artifacts": [
     "pacwallet-qt.app",
+    "pacwallet-qt.app/Contents/MacOS/pacwallet",
     "branding/",
     "README.md"
   ]

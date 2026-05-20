@@ -46,7 +46,7 @@ Source: "{#SourceReleaseDir}\upstreams.mainnet.template.json"; DestDir: "{userap
 [Icons]
 Name: "{autoprograms}\Pingancoin Wallet (Native Qt)"; Filename: "{app}\pacwallet-qt.exe"; WorkingDir: "{app}"; IconFilename: "{app}\branding\pingancoin-icon.ico"
 Name: "{autoprograms}\Pingancoin Wallet"; Filename: "{app}\pacwallet-desktop.exe"; Parameters: "--config ""{userappdata}\Pingancoin Wallet\pacwallet-desktop.json"""; WorkingDir: "{app}"; IconFilename: "{app}\branding\pingancoin-icon.ico"
-Name: "{autoprograms}\Pingancoin Wallet (Web Service)"; Filename: "{app}\pacwallet.exe"; Parameters: "serve --network mainnet --rpc http://127.0.0.1:9509 --listen 127.0.0.1:19709"; WorkingDir: "{app}"; IconFilename: "{app}\branding\pingancoin-icon.ico"
+Name: "{autoprograms}\Pingancoin Wallet (Web Service)"; Filename: "{app}\pacwallet.exe"; Parameters: "serve --network mainnet --walletdir ""{userprofile}\.pacwallet"" --rpc http://115.190.57.12/rpc --listen 127.0.0.1:19709"; WorkingDir: "{app}"; IconFilename: "{app}\branding\pingancoin-icon.ico"
 Name: "{autoprograms}\Wallet Release Notes"; Filename: "{app}\WINDOWS_RELEASE_NOTES.txt"
 Name: "{userdesktop}\Pingancoin Wallet"; Filename: "{app}\pacwallet-desktop.exe"; Parameters: "--config ""{userappdata}\Pingancoin Wallet\pacwallet-desktop.json"""; WorkingDir: "{app}"; IconFilename: "{app}\branding\pingancoin-icon.ico"; Tasks: desktopicon
 

@@ -3,6 +3,9 @@
 
 #include <QApplication>
 #include <QCloseEvent>
+#include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
 #include <QFont>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -19,6 +22,16 @@ namespace {
 
 constexpr int kDefaultWindowWidth = 1024;
 constexpr int kDefaultWindowHeight = 648;
+constexpr auto kDefaultRPCPrimary = "http://115.190.57.12/rpc";
+
+QString backendExecutableName()
+{
+#ifdef Q_OS_WIN
+    return QStringLiteral("pacwallet.exe");
+#else
+    return QStringLiteral("pacwallet");
+#endif
+}
 
 }
 
@@ -124,6 +137,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(&m_service, &ServiceController::serviceStopped, this, [this]() {
         statusBar()->showMessage(l10n::text(QStringLiteral("Local pacwallet service stopped.")), 3000);
     });
+
+    ensureLocalBackendRunning();
 
     m_refreshTimer.setInterval(15000);
     connect(&m_refreshTimer, &QTimer::timeout, this, &MainWindow::refreshOverview);
@@ -275,10 +290,10 @@ void MainWindow::loadSettings()
 {
     QSettings settings(QStringLiteral("Pingancoin"), QStringLiteral("pacwallet-qt"));
     const QString languageCode = settings.value(QStringLiteral("ui/language"), l10n::defaultLanguageCode()).toString();
-    const QString backendUrl = settings.value(QStringLiteral("backend/url"), QStringLiteral("http://127.0.0.1:19709")).toString();
-    const QString backendProgram = settings.value(QStringLiteral("backend/program"), QStringLiteral("pacwallet")).toString();
+    const QString backendUrl = settings.value(QStringLiteral("backend/url"), defaultBackendURL()).toString();
+    const QString backendProgram = settings.value(QStringLiteral("backend/program"), defaultBackendProgram()).toString();
     const QStringList backendArguments = settings.value(QStringLiteral("backend/arguments"),
-        QStringList{QStringLiteral("serve"), QStringLiteral("--network"), QStringLiteral("mainnet"), QStringLiteral("--rpc"), QStringLiteral("http://127.0.0.1:9509"), QStringLiteral("--listen"), QStringLiteral("127.0.0.1:19709")}).toStringList();
+        defaultBackendArguments()).toStringList();
 
     m_api.setBaseUrl(QUrl(backendUrl));
     m_service.setProgram(backendProgram);
@@ -299,6 +314,18 @@ void MainWindow::saveSettings() const
     settings.setValue(QStringLiteral("backend/program"), m_service.program());
     settings.setValue(QStringLiteral("backend/arguments"), m_service.arguments());
     settings.setValue(QStringLiteral("window/geometry"), geometry().isValid() ? saveGeometry() : QByteArray());
+}
+
+void MainWindow::ensureLocalBackendRunning()
+{
+    if (!isLocalBackendURL(m_api.baseUrl()) || m_service.isRunning()) {
+        return;
+    }
+    const QFileInfo backendInfo(m_service.program());
+    if (!backendInfo.exists()) {
+        return;
+    }
+    m_service.start();
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
@@ -393,6 +420,39 @@ void MainWindow::updatePageHeader(int index)
 {
     m_pageTitleLabel->setText(pageTitleForIndex(index));
     m_pageSubtitleLabel->setText(pageSubtitleForIndex(index));
+}
+
+QString MainWindow::defaultBackendProgram()
+{
+    const QString bundled = QDir(QCoreApplication::applicationDirPath()).filePath(backendExecutableName());
+    if (QFileInfo::exists(bundled)) {
+        return bundled;
+    }
+    return backendExecutableName();
+}
+
+QStringList MainWindow::defaultBackendArguments()
+{
+    return QStringList{
+        QStringLiteral("serve"),
+        QStringLiteral("--network"), QStringLiteral("mainnet"),
+        QStringLiteral("--walletdir"), QDir::homePath() + QStringLiteral("/.pacwallet"),
+        QStringLiteral("--rpc"), QString::fromLatin1(kDefaultRPCPrimary),
+        QStringLiteral("--listen"), QStringLiteral("127.0.0.1:19709"),
+    };
+}
+
+QString MainWindow::defaultBackendURL()
+{
+    return QStringLiteral("http://127.0.0.1:19709");
+}
+
+bool MainWindow::isLocalBackendURL(const QUrl &url)
+{
+    const QString host = url.host().toLower();
+    return host == QStringLiteral("127.0.0.1") ||
+           host == QStringLiteral("localhost") ||
+           host == QStringLiteral("::1");
 }
 
 } // namespace pacqt

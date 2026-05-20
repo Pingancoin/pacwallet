@@ -18,6 +18,8 @@ if ($OutDir -eq "") {
 $commit = (git -C $Root rev-parse --short HEAD).Trim()
 $buildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 $ldflags = "-X github.com/Pingancoin/pacwallet/internal/buildinfo.Version=$Version -X github.com/Pingancoin/pacwallet/internal/buildinfo.Commit=$commit -X github.com/Pingancoin/pacwallet/internal/buildinfo.BuildTime=$buildTime"
+$defaultRpcPrimary = "http://115.190.57.12/rpc"
+$defaultRpcSecondary = "http://180.184.43.187/rpc"
 
 $qtBin = Join-Path $QtRoot "$QtVersion\$QtArch\bin"
 $qtCmake = Join-Path $qtBin "qt-cmake.bat"
@@ -86,6 +88,38 @@ try {
 
     @"
 {
+  "network": "mainnet",
+  "wallet_dir": "",
+  "rpc_url": "$defaultRpcPrimary",
+  "listen": "127.0.0.1:19709",
+  "browser": "edge",
+  "title": "Pingancoin Wallet",
+  "upstreams_template": "upstreams.mainnet.template.json"
+}
+"@ | Set-Content -Path (Join-Path $OutDir "pacwallet-desktop.json") -Encoding ascii
+
+    @"
+{
+  "active_id": "server1-rpc",
+  "profiles": [
+    {
+      "id": "server1-rpc",
+      "name": "Server 1 RPC",
+      "url": "$defaultRpcPrimary",
+      "source": "official"
+    },
+    {
+      "id": "server2-rpc",
+      "name": "Server 2 RPC",
+      "url": "$defaultRpcSecondary",
+      "source": "official"
+    }
+  ]
+}
+"@ | Set-Content -Path (Join-Path $OutDir "upstreams.mainnet.template.json") -Encoding ascii
+
+    @"
+{
   "product": "Pingancoin Wallet Qt",
   "version": "$Version",
   "commit": "$commit",
@@ -94,6 +128,8 @@ try {
   "artifacts": [
     "pacwallet.exe",
     "pacwallet-qt.exe",
+    "pacwallet-desktop.json",
+    "upstreams.mainnet.template.json",
     "branding/",
     "README.md",
     "pacwallet-installer.iss"
