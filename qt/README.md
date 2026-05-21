@@ -1,88 +1,66 @@
-# Pingancoin Native Wallet (`pacwallet-qt`)
+# Pingancoin Qt Wallet
 
-This directory contains the native `C++/Qt` desktop wallet front end for Pingancoin.
+This directory contains the native `C++/Qt` desktop front end for Pingancoin
+Wallet.
 
-The architecture follows:
+## Architecture
 
-- native desktop UI: `Qt Widgets`
-- wallet backend: existing `pacwallet serve`
-- chain/node backend: existing `pacd` RPC
+- desktop UI: Qt Widgets
+- local wallet core: bundled `pacwallet serve`
+- chain backend: configured remote `pacd` RPC endpoint
 
-## Goals
+The Qt app is the primary desktop-wallet interface. It starts the local wallet
+service automatically, talks to it over `127.0.0.1`, and stops it when the app
+quits. The local service stores wallet data and forwards chain operations to the
+configured remote RPC endpoint.
 
-This is the path for a real native desktop wallet rather than a browser-hosted shell.
-It is meant to feel closer to a traditional cryptocurrency desktop client while still
-reusing the existing Go wallet core and RPC surface.
+## Current macOS Release Scope
 
-## Current Scope
-
-The initial Qt app includes:
-
-- native main window and sidebar navigation
-- overview dashboard
-- first-run create / restore flow
-- overview dashboard with wallet state and UTXO inventory
+- first-run create and restore flow
+- overview with wallet state, balance, and node health
 - receive screen with address list, QR loading, copy helpers, and QR export
-- send form with spendable balance display, max helper, change-address selection, and native confirmation prompt
+- send form with spendable balance display and confirmation prompt
 - transaction list with filters, search, and detail inspector
-- multisig preview screen with local signer export and result export
-- settings for backend URL, local service launch, upstream switching, encryption, passphrase changes, private-key import, backups, and wallet path shortcuts
+- multisig preview with local signer export and result export
+- settings for language, upstream endpoint, backup, restore, encryption,
+  passphrase change, private-key import, and wallet path shortcuts
 
 ## Build
 
-You need a local Qt 6 toolchain with:
+Requirements:
 
-- `Qt6 Widgets`
-- `Qt6 Network`
-- `cmake`
-- a C++17 compiler
+- Qt 6 Widgets
+- Qt 6 Network
+- CMake
+- C++17 compiler
+- Go 1.25 or newer
 
-Example build:
+Development build:
 
 ```bash
 qt-cmake -S qt -B qt/build
 cmake --build qt/build -j2
 ```
 
-## Runtime Model
+macOS release build from the repository root:
 
-The app talks to the existing wallet backend endpoints:
+```bash
+VERSION=1.0.0 ./scripts/build-macos-qt-release.sh
+```
+
+The release script produces a bundled `pacwallet-qt.app` and a zip archive.
+
+## Runtime Notes
+
+The app uses the local wallet service API, including:
 
 - `GET /api/overview`
 - `GET /api/tx/<txid>`
+- `POST /api/wallet/create`
+- `POST /api/wallet/restore`
 - `POST /api/addresses`
 - `POST /api/send`
 - `POST /api/multisig/preview`
 - `GET /receive/qr/<address>`
 
-It can also launch a local `pacwallet serve` process through `QProcess` when configured.
-
-## macOS Native Release
-
-On macOS with Qt installed:
-
-```bash
-VERSION=0.3.0-rc1 ./scripts/build-macos-qt-release.sh
-```
-
-That produces:
-
-- a self-contained `pacwallet-qt.app`
-- bundled Qt frameworks via `macdeployqt`
-- `release.json`
-- a zip archive under `dist/`
-
-## Windows Native Release
-
-On a Windows build machine:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\setup-windows-qt-toolchain.ps1
-powershell -ExecutionPolicy Bypass -File .\scripts\build-windows-qt-release.ps1
-```
-
-That produces:
-
-- a deployable `pacwallet-qt.exe`
-- Qt runtime DLLs and plugin folders via `windeployqt`
-- a zipped Windows release directory under `dist\`
+The Qt app should not require users to start a separate wallet backend manually.
