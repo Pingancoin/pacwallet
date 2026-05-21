@@ -109,6 +109,20 @@ CMake-generated folders are not Go packages.
 - The default wallet mode uses a remote chain RPC endpoint, so endpoint
   availability affects balance and transaction display.
 
+## Legal Notice
+
+Pingancoin Wallet and related Pingancoin software are provided for technical
+research, protocol experimentation, and open-source software development only.
+This project does not provide investment advice, financial advice, trading
+advice, or any promise of token value, liquidity, exchange listing, or future
+profit.
+
+The project maintainer does not conduct exchange-listing activities on behalf of
+users and does not authorize anyone to market PAC as an investment product.
+Anyone who downloads, runs, mines, transfers, or otherwise uses this software is
+responsible for understanding and complying with the laws and regulations that
+apply in their own jurisdiction. Users act at their own risk.
+
 ## Current Scope
 
 This repository currently publishes the macOS wallet as the first official
