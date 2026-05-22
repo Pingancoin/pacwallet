@@ -1,0 +1,27 @@
+[Unit]
+Description=Pingancoin pacwallet mainnet local wallet service
+After=network-online.target pacd-mainnet.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pacwallet
+Group=pacwallet
+EnvironmentFile=/etc/pingancoin/pacwallet-mainnet.env
+ExecStart=/usr/local/bin/pacwallet serve \
+  --network=${PACWALLET_NETWORK} \
+  --walletdir=${PACWALLET_WALLETDIR} \
+  --rpc=${PACWALLET_RPC_URL} \
+  --listen=${PACWALLET_LISTEN} \
+  --apitoken=${PACWALLET_API_TOKEN}
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65535
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/pacwallet
+
+[Install]
+WantedBy=multi-user.target

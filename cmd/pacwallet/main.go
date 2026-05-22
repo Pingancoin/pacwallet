@@ -522,6 +522,7 @@ func serve(args []string) error {
 	walletDir := flags.String("walletdir", wallet.DefaultDir(), "base wallet directory")
 	rpcURL := flags.String("rpc", "http://rpc.pingancoin.org/rpc", "pacd RPC URL")
 	listen := flags.String("listen", "127.0.0.1:19709", "wallet service listen address")
+	apiToken := flags.String("apitoken", os.Getenv("PACWALLET_API_TOKEN"), "optional token required for sensitive wallet API calls")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -530,7 +531,7 @@ func serve(args []string) error {
 		return err
 	}
 	svc := service.New(params, *walletDir, *rpcURL)
-	server, err := web.New(svc)
+	server, err := web.NewWithOptions(svc, web.Options{APIToken: *apiToken})
 	if err != nil {
 		return err
 	}

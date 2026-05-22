@@ -26,6 +26,11 @@ type Server struct {
 	service   *service.Service
 	templates *template.Template
 	mux       *http.ServeMux
+	apiToken  string
+}
+
+type Options struct {
+	APIToken string
 }
 
 type ViewData struct {
@@ -48,6 +53,10 @@ type ViewData struct {
 }
 
 func New(svc *service.Service) (*Server, error) {
+	return NewWithOptions(svc, Options{})
+}
+
+func NewWithOptions(svc *service.Service, opts Options) (*Server, error) {
 	funcs := template.FuncMap{
 		"formatPAC": wallet.FormatPAC,
 		"short":     short,
@@ -60,6 +69,7 @@ func New(svc *service.Service) (*Server, error) {
 		service:   svc,
 		templates: templates,
 		mux:       http.NewServeMux(),
+		apiToken:  strings.TrimSpace(opts.APIToken),
 	}
 	server.routes()
 	return server, nil
@@ -105,6 +115,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/keys/import", s.handleImportKeyAPI)
 	s.mux.HandleFunc("/api/multisig/preview", s.handleMultiSigPreviewAPI)
 	s.mux.HandleFunc("/api/send", s.handleSendAPI)
+	s.mux.HandleFunc("/api/sendmany", s.handleSendManyAPI)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
@@ -709,6 +720,47 @@ func (s *Server) handleSendAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleSendManyAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.authorizedAPI(r) {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "wallet token required"})
+		return
+	}
+	var req service.SendManyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	result, err := s.service.SendMany(req)
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, service.ErrWalletNotFound) {
+			status = http.StatusNotFound
+		}
+		writeJSON(w, status, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) authorizedAPI(r *http.Request) bool {
+	if s.apiToken == "" {
+		return true
+	}
+	if token := strings.TrimSpace(r.Header.Get("X-PACWallet-Token")); token != "" {
+		return token == s.apiToken
+	}
+	const bearerPrefix = "Bearer "
+	auth := r.Header.Get("Authorization")
+	if strings.HasPrefix(auth, bearerPrefix) {
+		return strings.TrimSpace(strings.TrimPrefix(auth, bearerPrefix)) == s.apiToken
+	}
+	return false
 }
 
 func (s *Server) handleMultiSigPreviewAPI(w http.ResponseWriter, r *http.Request) {

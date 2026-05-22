@@ -1,6 +1,7 @@
 package wallet_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/Pingancoin/pacwallet/internal/address"
@@ -57,6 +58,45 @@ func TestBuildDraftTx(t *testing.T) {
 	}
 	if draft.Change != 59_999_000 {
 		t.Fatalf("change = %d", draft.Change)
+	}
+}
+
+func TestBuildDraftTxMany(t *testing.T) {
+	params := chaincfg.SimNetParams()
+	w, err := wallet.Create(wallet.Path(t.TempDir(), params.Name), params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.AddKey(params, "dest-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.AddKey(params, "dest-2"); err != nil {
+		t.Fatal(err)
+	}
+	balance := wallet.Balance{
+		UTXOs: []wallet.UTXO{{
+			TxHash:  strings.Repeat("01", 32),
+			Vout:    0,
+			Value:   100_000_000,
+			Address: w.Keys[0].Address,
+			Mature:  true,
+		}},
+	}
+	draft, err := wallet.BuildDraftTxMany(params, w, balance, []wallet.PaymentOutput{
+		{Address: w.Keys[1].Address, Amount: 25_000_000},
+		{Address: w.Keys[2].Address, Amount: 30_000_000},
+	}, 1_000, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(draft.Tx.TxOut) != 3 {
+		t.Fatalf("outputs = %d, want two payments plus change", len(draft.Tx.TxOut))
+	}
+	if draft.OutputTotal != 99_999_000 || draft.Change != 44_999_000 {
+		t.Fatalf("unexpected draft totals: %+v", draft)
+	}
+	if err := wallet.SignDraftTx(params, w, draft); err != nil {
+		t.Fatal(err)
 	}
 }
 

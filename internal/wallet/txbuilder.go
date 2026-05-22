@@ -22,7 +22,30 @@ type DraftTx struct {
 	Destination string
 }
 
+type PaymentOutput struct {
+	Address string
+	Amount  int64
+}
+
 func BuildDraftTx(params *chaincfg.Params, w *Wallet, balance Balance, destination string, amount int64, fee int64, changeAddr string) (DraftTx, error) {
+	return BuildDraftTxMany(params, w, balance, []PaymentOutput{{Address: destination, Amount: amount}}, fee, changeAddr)
+}
+
+func BuildDraftTxMany(params *chaincfg.Params, w *Wallet, balance Balance, outputs []PaymentOutput, fee int64, changeAddr string) (DraftTx, error) {
+	if len(outputs) == 0 {
+		return DraftTx{}, fmt.Errorf("at least one payment output is required")
+	}
+	var amount int64
+	for _, output := range outputs {
+		if output.Amount <= 0 {
+			return DraftTx{}, fmt.Errorf("amount must be positive")
+		}
+		next := amount + output.Amount
+		if next < amount {
+			return DraftTx{}, fmt.Errorf("amount overflow")
+		}
+		amount = next
+	}
 	if amount <= 0 {
 		return DraftTx{}, fmt.Errorf("amount must be positive")
 	}
@@ -36,10 +59,6 @@ func BuildDraftTx(params *chaincfg.Params, w *Wallet, balance Balance, destinati
 		changeAddr = w.Keys[0].Address
 	}
 
-	destScript, err := address.DecodeAddressScript(params, destination)
-	if err != nil {
-		return DraftTx{}, fmt.Errorf("destination address: %w", err)
-	}
 	changeScript, err := address.DecodeAddressScript(params, changeAddr)
 	if err != nil {
 		return DraftTx{}, fmt.Errorf("change address: %w", err)
@@ -73,10 +92,16 @@ func BuildDraftTx(params *chaincfg.Params, w *Wallet, balance Balance, destinati
 			Sequence: wire.MaxUint32,
 		})
 	}
-	tx.TxOut = append(tx.TxOut, &wire.TxOut{
-		Value:    amount,
-		PkScript: destScript,
-	})
+	for _, output := range outputs {
+		destScript, err := address.DecodeAddressScript(params, output.Address)
+		if err != nil {
+			return DraftTx{}, fmt.Errorf("destination address %q: %w", output.Address, err)
+		}
+		tx.TxOut = append(tx.TxOut, &wire.TxOut{
+			Value:    output.Amount,
+			PkScript: destScript,
+		})
+	}
 	if change > 0 {
 		tx.TxOut = append(tx.TxOut, &wire.TxOut{
 			Value:    change,
@@ -92,7 +117,7 @@ func BuildDraftTx(params *chaincfg.Params, w *Wallet, balance Balance, destinati
 		Fee:         fee,
 		Change:      change,
 		ChangeAddr:  changeAddr,
-		Destination: destination,
+		Destination: outputs[0].Address,
 	}, nil
 }
 

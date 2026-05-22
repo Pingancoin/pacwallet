@@ -33,6 +33,7 @@ The release also includes a SHA256 checksum file.
 - show balance, wallet status, and node status
 - generate receive addresses and QR codes
 - send PAC transactions through the configured RPC backend
+- serve a local-only batch payment API for pool hot-wallet payouts
 - show transaction history and transaction details
 - manage backups, passphrase changes, private-key import, and upstream settings
 - preview and export 3-of-5 multisig payout data
@@ -40,6 +41,10 @@ The release also includes a SHA256 checksum file.
 The desktop app starts the bundled wallet service automatically when it opens and
 stops it when the app closes. It does not run a local `pacd` node or download the
 blockchain. Chain data is read from the configured remote node RPC service.
+
+For pool operations, `pacwallet serve` exposes `POST /api/sendmany` for local
+batch payouts. Keep this service bound to `127.0.0.1` and set
+`PACWALLET_API_TOKEN` when another local service, such as `pacpool`, calls it.
 
 ## Wallet Files
 

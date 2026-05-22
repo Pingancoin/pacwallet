@@ -96,6 +96,18 @@ type SendRequest struct {
 	Passphrase string `json:"passphrase"`
 }
 
+type SendManyRequest struct {
+	Payments   []PaymentRequest `json:"payments"`
+	Fee        string           `json:"fee"`
+	Change     string           `json:"change"`
+	Passphrase string           `json:"passphrase"`
+}
+
+type PaymentRequest struct {
+	To     string `json:"to"`
+	Amount string `json:"amount"`
+}
+
 type SendResponse struct {
 	Accepted    bool   `json:"accepted"`
 	TxID        string `json:"txid"`
@@ -402,6 +414,73 @@ func (s *Service) Send(req SendRequest) (SendResponse, error) {
 		Change:      draft.Change,
 		ChangeAddr:  draft.ChangeAddr,
 		Destination: draft.Destination,
+	}, nil
+}
+
+func (s *Service) SendMany(req SendManyRequest) (SendResponse, error) {
+	if len(req.Payments) == 0 {
+		return SendResponse{}, fmt.Errorf("at least one payment is required")
+	}
+	outputs := make([]walletcore.PaymentOutput, 0, len(req.Payments))
+	var amountTotal int64
+	for _, payment := range req.Payments {
+		amount, err := walletcore.ParsePACAmount(payment.Amount)
+		if err != nil {
+			return SendResponse{}, fmt.Errorf("amount for %s: %w", strings.TrimSpace(payment.To), err)
+		}
+		to := strings.TrimSpace(payment.To)
+		if to == "" {
+			return SendResponse{}, fmt.Errorf("payment address is required")
+		}
+		next := amountTotal + amount
+		if next < amountTotal {
+			return SendResponse{}, fmt.Errorf("amount overflow")
+		}
+		amountTotal = next
+		outputs = append(outputs, walletcore.PaymentOutput{Address: to, Amount: amount})
+	}
+
+	feeText := strings.TrimSpace(req.Fee)
+	if feeText == "" {
+		feeText = "0.0001"
+	}
+	fee, err := walletcore.ParsePACAmount(feeText)
+	if err != nil {
+		return SendResponse{}, fmt.Errorf("fee: %w", err)
+	}
+
+	s.mu.Lock()
+	w, err := s.loadWalletLocked()
+	s.mu.Unlock()
+	if err != nil {
+		return SendResponse{}, err
+	}
+
+	balance, err := walletcore.ScanBalance(s.params, w, s.rpcURL)
+	if err != nil {
+		return SendResponse{}, err
+	}
+	draft, err := walletcore.BuildDraftTxMany(s.params, w, balance, outputs, fee, req.Change)
+	if err != nil {
+		return SendResponse{}, err
+	}
+	if err := walletcore.SignDraftTxWithPassphrase(s.params, w, draft, req.Passphrase); err != nil {
+		return SendResponse{}, err
+	}
+	result, err := walletcore.SubmitRawTransaction(s.rpcURL, draft.Tx)
+	if err != nil {
+		return SendResponse{}, err
+	}
+	return SendResponse{
+		Accepted:    result.Accepted,
+		TxID:        result.TxID,
+		MempoolSize: result.MempoolSize,
+		InputTotal:  draft.InputTotal,
+		OutputTotal: draft.OutputTotal,
+		Fee:         draft.Fee,
+		Change:      draft.Change,
+		ChangeAddr:  draft.ChangeAddr,
+		Destination: fmt.Sprintf("%d payments", len(outputs)),
 	}, nil
 }
 
