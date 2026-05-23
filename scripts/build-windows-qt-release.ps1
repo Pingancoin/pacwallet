@@ -18,7 +18,7 @@ if ($OutDir -eq "") {
 $commit = (git -C $Root rev-parse --short HEAD).Trim()
 $buildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 $ldflags = "-X github.com/Pingancoin/pacwallet/internal/buildinfo.Version=$Version -X github.com/Pingancoin/pacwallet/internal/buildinfo.Commit=$commit -X github.com/Pingancoin/pacwallet/internal/buildinfo.BuildTime=$buildTime"
-$defaultRpcPrimary = "http://rpc.pingancoin.org/rpc"
+$defaultRpcPrimary = "https://rpc.pingancoin.org/rpc"
 $defaultRpcSecondary = "http://180.184.43.187/rpc"
 
 $qtBin = Join-Path $QtRoot "$QtVersion\$QtArch\bin"

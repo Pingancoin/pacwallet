@@ -22,7 +22,7 @@ namespace {
 
 constexpr int kDefaultWindowWidth = 1024;
 constexpr int kDefaultWindowHeight = 648;
-constexpr auto kDefaultRPCPrimary = "http://rpc.pingancoin.org/rpc";
+constexpr auto kDefaultRPCPrimary = "https://rpc.pingancoin.org/rpc";
 
 QString backendExecutableName()
 {
@@ -58,6 +58,9 @@ bool shouldMigrateBackendArguments(const QStringList &arguments)
         return true;
     }
     if (joined.contains(QStringLiteral("http://127.0.0.1:9509"))) {
+        return true;
+    }
+    if (joined.contains(QStringLiteral("http://rpc.pingancoin.org/rpc"))) {
         return true;
     }
     return false;

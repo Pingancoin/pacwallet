@@ -23,6 +23,11 @@ var ErrWalletNotFound = errors.New("wallet not found")
 var ErrWalletAlreadyExists = errors.New("wallet already exists")
 var ErrBackupNotFound = errors.New("backup not found")
 
+const (
+	defaultOfficialRPCURL = "https://rpc.pingancoin.org/rpc"
+	legacyOfficialRPCURL  = "http://rpc.pingancoin.org/rpc"
+)
+
 type Service struct {
 	params        *chaincfg.Params
 	walletPath    string
@@ -640,7 +645,7 @@ func (s *Service) AddUpstream(req AddUpstreamRequest) (UpstreamSettings, error) 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	url := normalizeRPCURL(req.URL)
+	url := upgradeOfficialRPCURL(req.URL)
 	if url == "" {
 		return UpstreamSettings{}, fmt.Errorf("upstream URL is required")
 	}
@@ -822,16 +827,30 @@ func (s *Service) bootstrapUpstreams() {
 
 	cfg, err := s.loadUpstreamsLocked()
 	if err == nil && len(cfg.Profiles) > 0 {
+		changed := false
+		for i := range cfg.Profiles {
+			upgraded := upgradeOfficialRPCURL(cfg.Profiles[i].URL)
+			if upgraded != cfg.Profiles[i].URL {
+				cfg.Profiles[i].URL = upgraded
+				changed = true
+			}
+		}
 		for _, profile := range cfg.Profiles {
 			if profile.ID == cfg.ActiveID && profile.URL != "" {
 				s.rpcURL = normalizeRPCURL(profile.URL)
+				if changed {
+					_ = s.saveUpstreamsLocked(cfg)
+				}
 				return
 			}
 		}
+		if changed {
+			_ = s.saveUpstreamsLocked(cfg)
+		}
 	}
-	defaultURL := normalizeRPCURL(s.rpcURL)
+	defaultURL := upgradeOfficialRPCURL(s.rpcURL)
 	if defaultURL == "" {
-		defaultURL = "http://rpc.pingancoin.org/rpc"
+		defaultURL = defaultOfficialRPCURL
 	}
 	cfg = upstreamFile{
 		ActiveID: "local-node",
@@ -1037,7 +1056,7 @@ func ensureUniqueProfileID(existing []UpstreamProfile, id string) string {
 func normalizeTemplateProfile(profile UpstreamProfile) (UpstreamProfile, bool) {
 	profile.ID = strings.TrimSpace(profile.ID)
 	profile.Name = strings.TrimSpace(profile.Name)
-	profile.URL = normalizeRPCURL(profile.URL)
+	profile.URL = upgradeOfficialRPCURL(profile.URL)
 	profile.Source = strings.TrimSpace(profile.Source)
 	if profile.ID == "" {
 		profile.ID = profileIDFromName(profile.Name)
@@ -1055,6 +1074,14 @@ func normalizeTemplateProfile(profile UpstreamProfile) (UpstreamProfile, bool) {
 		return UpstreamProfile{}, false
 	}
 	return profile, true
+}
+
+func upgradeOfficialRPCURL(url string) string {
+	normalized := normalizeRPCURL(url)
+	if normalized == legacyOfficialRPCURL {
+		return defaultOfficialRPCURL
+	}
+	return normalized
 }
 
 func findMatchingProfile(existing []UpstreamProfile, candidate UpstreamProfile) int {

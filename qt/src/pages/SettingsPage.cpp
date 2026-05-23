@@ -102,7 +102,7 @@ SettingsPage::SettingsPage(QWidget *parent)
     processLayout->setHorizontalSpacing(12);
     processLayout->setVerticalSpacing(8);
     m_programEdit = new QLineEdit(QStringLiteral("pacwallet"), this);
-    m_argumentsEdit = new QLineEdit(QStringLiteral("serve --network mainnet --rpc http://rpc.pingancoin.org/rpc --listen 127.0.0.1:19709"), this);
+    m_argumentsEdit = new QLineEdit(QStringLiteral("serve --network mainnet --rpc https://rpc.pingancoin.org/rpc --listen 127.0.0.1:19709"), this);
     m_startBackendButton = new QPushButton(QStringLiteral("Start Backend"), this);
     m_stopBackendButton = new QPushButton(QStringLiteral("Stop Backend"), this);
     auto *processButtons = new QHBoxLayout();

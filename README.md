@@ -4,11 +4,11 @@ Pingancoin Wallet is the official desktop wallet for Pingancoin / PAC.
 
 Current public release:
 
-- version: `v1.0.0`
+- version: `v1.0.1`
 - platform: macOS
 - application: native `C++/Qt` desktop wallet
 - wallet core: local `pacwallet` service bundled inside the app
-- chain backend: remote `pacd` RPC endpoint, defaulting to `rpc.pingancoin.org`
+- chain backend: remote `pacd` RPC endpoint, defaulting to `https://rpc.pingancoin.org/rpc`
 
 This release is the first clean macOS desktop build. Older experimental
 interfaces, launchers, and release-candidate notes have been removed from this
@@ -18,11 +18,11 @@ repository documentation so the README reflects the current shipping wallet.
 
 Download the latest macOS build from:
 
-- https://github.com/Pingancoin/pacwallet/releases/tag/v1.0.0
+- https://github.com/Pingancoin/pacwallet/releases/tag/v1.0.1
 
 The macOS asset is:
 
-- `pacwallet-macos-v1.0.0.zip`
+- `pacwallet-macos-v1.0.1.zip`
 
 The release also includes a SHA256 checksum file.
 

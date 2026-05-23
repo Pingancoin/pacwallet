@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -158,6 +159,41 @@ func TestServiceUpstreamProfiles(t *testing.T) {
 	}
 	if settings.ActiveID != "local-node" || settings.ActiveURL != "http://127.0.0.1:29509" {
 		t.Fatalf("select local result = %+v", settings)
+	}
+}
+
+func TestServiceMigratesLegacyOfficialRPC(t *testing.T) {
+	params := chaincfg.MainNetParams()
+	walletDir := t.TempDir()
+	upstreamsDir := filepath.Join(walletDir, params.Name)
+	if err := os.MkdirAll(upstreamsDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	upstreamsPath := filepath.Join(upstreamsDir, "upstreams.json")
+	if err := os.WriteFile(upstreamsPath, []byte(`{
+  "active_id": "official-rpc",
+  "profiles": [
+    {
+      "id": "official-rpc",
+      "name": "Official RPC",
+      "url": "http://rpc.pingancoin.org/rpc",
+      "source": "official"
+    }
+  ]
+}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	svc := service.New(params, walletDir, "")
+	if svc.RPCURL() != "https://rpc.pingancoin.org/rpc" {
+		t.Fatalf("rpc URL = %s, want HTTPS official RPC", svc.RPCURL())
+	}
+	data, err := os.ReadFile(upstreamsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "http://rpc.pingancoin.org/rpc") {
+		t.Fatalf("legacy RPC URL was not migrated: %s", string(data))
 	}
 }
 

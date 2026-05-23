@@ -7,7 +7,7 @@ VERSION="${VERSION:-0.1.0-dev}"
 COMMIT="${COMMIT:-$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)}"
 BUILD_TIME="${BUILD_TIME:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}"
 ARCHIVE_PATH="${ARCHIVE_PATH:-${OUT_DIR}.zip}"
-DEFAULT_RPC_PRIMARY="${DEFAULT_RPC_PRIMARY:-http://rpc.pingancoin.org/rpc}"
+DEFAULT_RPC_PRIMARY="${DEFAULT_RPC_PRIMARY:-https://rpc.pingancoin.org/rpc}"
 DEFAULT_RPC_SECONDARY="${DEFAULT_RPC_SECONDARY:-http://180.184.43.187/rpc}"
 
 LDFLAGS="-X github.com/Pingancoin/pacwallet/internal/buildinfo.Version=${VERSION} -X github.com/Pingancoin/pacwallet/internal/buildinfo.Commit=${COMMIT} -X github.com/Pingancoin/pacwallet/internal/buildinfo.BuildTime=${BUILD_TIME}"
