@@ -23,10 +23,13 @@ var ErrWalletNotFound = errors.New("wallet not found")
 var ErrWalletAlreadyExists = errors.New("wallet already exists")
 var ErrBackupNotFound = errors.New("backup not found")
 
-const (
-	defaultOfficialRPCURL = "https://rpc.pingancoin.org/rpc"
-	legacyOfficialRPCURL  = "http://rpc.pingancoin.org/rpc"
-)
+const defaultOfficialRPCURL = "https://rpc.pingancoin.org/rpc"
+
+var legacyOfficialRPCURLs = map[string]struct{}{
+	"http://rpc.pingancoin.org/rpc": {},
+	"http://115.190.57.12/rpc":      {},
+	"http://180.184.43.187/rpc":     {},
+}
 
 type Service struct {
 	params        *chaincfg.Params
@@ -1078,7 +1081,7 @@ func normalizeTemplateProfile(profile UpstreamProfile) (UpstreamProfile, bool) {
 
 func upgradeOfficialRPCURL(url string) string {
 	normalized := normalizeRPCURL(url)
-	if normalized == legacyOfficialRPCURL {
+	if _, ok := legacyOfficialRPCURLs[normalized]; ok {
 		return defaultOfficialRPCURL
 	}
 	return normalized

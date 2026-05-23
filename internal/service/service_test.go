@@ -171,11 +171,23 @@ func TestServiceMigratesLegacyOfficialRPC(t *testing.T) {
 	}
 	upstreamsPath := filepath.Join(upstreamsDir, "upstreams.json")
 	if err := os.WriteFile(upstreamsPath, []byte(`{
-  "active_id": "official-rpc",
+  "active_id": "server1-rpc",
   "profiles": [
     {
+      "id": "server1-rpc",
+      "name": "Server 1 RPC",
+      "url": "http://115.190.57.12/rpc",
+      "source": "official"
+    },
+    {
+      "id": "server2-rpc",
+      "name": "Server 2 RPC",
+      "url": "http://180.184.43.187/rpc",
+      "source": "official"
+    },
+    {
       "id": "official-rpc",
-      "name": "Official RPC",
+      "name": "Legacy Official RPC",
       "url": "http://rpc.pingancoin.org/rpc",
       "source": "official"
     }
@@ -192,8 +204,14 @@ func TestServiceMigratesLegacyOfficialRPC(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(data), "http://rpc.pingancoin.org/rpc") {
-		t.Fatalf("legacy RPC URL was not migrated: %s", string(data))
+	for _, legacy := range []string{
+		"http://rpc.pingancoin.org/rpc",
+		"http://115.190.57.12/rpc",
+		"http://180.184.43.187/rpc",
+	} {
+		if strings.Contains(string(data), legacy) {
+			t.Fatalf("legacy RPC URL %s was not migrated: %s", legacy, string(data))
+		}
 	}
 }
 
