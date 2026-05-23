@@ -59,7 +59,7 @@ SettingsPage::SettingsPage(QWidget *parent)
     m_nodeStatusLabel = new QLabel(this);
     m_nodeStatusLabel->setWordWrap(true);
     m_nodeStatusLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    m_openWalletPathButton = new QPushButton(QStringLiteral("Open Wallet Location"), this);
+    m_openWalletPathButton = new QPushButton(QStringLiteral("Open Wallet File"), this);
     m_openBackupPathButton = new QPushButton(QStringLiteral("Open Backup Folder"), this);
     auto *statusButtons = new QHBoxLayout();
     statusButtons->setSpacing(8);
@@ -77,7 +77,7 @@ SettingsPage::SettingsPage(QWidget *parent)
     appearanceLayout->setHorizontalSpacing(12);
     appearanceLayout->setVerticalSpacing(8);
     m_languageCombo = new QComboBox(this);
-    auto *appearanceHint = new QLabel(QStringLiteral("Choose how the wallet interface is displayed on this Mac."), this);
+    auto *appearanceHint = new QLabel(QStringLiteral("Choose how the wallet interface is displayed on this computer."), this);
     appearanceHint->setWordWrap(true);
     appearanceHint->setStyleSheet(QStringLiteral("color: #475569;"));
     appearanceLayout->addRow(appearanceHint);
@@ -236,7 +236,7 @@ void SettingsPage::retranslateUi()
             }
         }
         if (auto *hint = qobject_cast<QLabel *>(form->itemAt(0, QFormLayout::SpanningRole)->widget())) {
-            hint->setText(l10n::text(QStringLiteral("Choose how the wallet interface is displayed on this Mac.")));
+            hint->setText(l10n::text(QStringLiteral("Choose how the wallet interface is displayed on this computer.")));
         }
     }
     if (auto *form = qobject_cast<QFormLayout *>(m_securityBox->layout())) {
@@ -280,7 +280,7 @@ void SettingsPage::retranslateUi()
     m_languageCombo->setCurrentIndex(languageIndex);
     m_languageCombo->blockSignals(false);
 
-    m_openWalletPathButton->setText(l10n::text(QStringLiteral("Open Wallet Location")));
+    m_openWalletPathButton->setText(l10n::text(QStringLiteral("Open Wallet File")));
     m_openBackupPathButton->setText(l10n::text(QStringLiteral("Open Backup Folder")));
     m_encryptButton->setText(l10n::text(QStringLiteral("Encrypt Wallet")));
     m_changePassphraseButton->setText(l10n::text(QStringLiteral("Change Passphrase")));

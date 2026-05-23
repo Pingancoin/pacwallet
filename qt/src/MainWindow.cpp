@@ -57,11 +57,16 @@ bool shouldMigrateBackendArguments(const QStringList &arguments)
     if (!joined.contains(QStringLiteral("--walletdir"))) {
         return true;
     }
-    if (joined.contains(QStringLiteral("http://127.0.0.1:9509"))) {
-        return true;
-    }
-    if (joined.contains(QStringLiteral("http://rpc.pingancoin.org/rpc"))) {
-        return true;
+    const QStringList legacyRPCs{
+        QStringLiteral("http://127.0.0.1:9509"),
+        QStringLiteral("http://rpc.pingancoin.org/rpc"),
+        QStringLiteral("http://115.190.57.12/rpc"),
+        QStringLiteral("http://180.184.43.187/rpc"),
+    };
+    for (const QString &legacyRPC : legacyRPCs) {
+        if (joined.contains(legacyRPC)) {
+            return true;
+        }
     }
     return false;
 }
