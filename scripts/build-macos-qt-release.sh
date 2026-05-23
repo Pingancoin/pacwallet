@@ -20,7 +20,7 @@ echo "commit: $COMMIT"
 echo "build_time: $BUILD_TIME"
 
 pushd "$ROOT" >/dev/null
-"$QT_CMAKE" -S qt -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release
+"$QT_CMAKE" -S qt -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release -DPACWALLET_QT_VERSION="$VERSION"
 cmake --build "$BUILD_DIR" -j2
 popd >/dev/null
 

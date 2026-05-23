@@ -8,10 +8,28 @@
 #include <QHBoxLayout>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QSizePolicy>
 #include <QUrl>
 #include <QVBoxLayout>
 
+#ifndef PACWALLET_QT_VERSION
+#define PACWALLET_QT_VERSION "dev"
+#endif
+
 namespace pacqt {
+
+namespace {
+
+QString displayVersion()
+{
+    const QString version = QString::fromLatin1(PACWALLET_QT_VERSION).trimmed();
+    if (version.isEmpty()) {
+        return QStringLiteral("dev");
+    }
+    return version.startsWith(QLatin1Char('v')) ? version : QStringLiteral("v%1").arg(version);
+}
+
+} // namespace
 
 SettingsPage::SettingsPage(QWidget *parent)
     : QWidget(parent)
@@ -31,12 +49,16 @@ SettingsPage::SettingsPage(QWidget *parent)
     auto *statusLayout = new QFormLayout(m_statusBox);
     statusLayout->setHorizontalSpacing(12);
     statusLayout->setVerticalSpacing(8);
+    statusLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    statusLayout->setRowWrapPolicy(QFormLayout::WrapLongRows);
+    m_versionLabel = new QLabel(displayVersion(), this);
     m_walletPathLabel = new QLabel(this);
     m_walletPathLabel->setWordWrap(true);
+    m_walletPathLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     m_walletStateLabel = new QLabel(this);
     m_nodeStatusLabel = new QLabel(this);
-    m_activeUpstreamLabel = new QLabel(this);
-    m_activeUpstreamLabel->setWordWrap(true);
+    m_nodeStatusLabel->setWordWrap(true);
+    m_nodeStatusLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     m_openWalletPathButton = new QPushButton(QStringLiteral("Open Wallet Location"), this);
     m_openBackupPathButton = new QPushButton(QStringLiteral("Open Backup Folder"), this);
     auto *statusButtons = new QHBoxLayout();
@@ -44,10 +66,10 @@ SettingsPage::SettingsPage(QWidget *parent)
     statusButtons->addWidget(m_openWalletPathButton);
     statusButtons->addWidget(m_openBackupPathButton);
     statusButtons->addStretch(1);
+    statusLayout->addRow(QStringLiteral("Wallet Version"), m_versionLabel);
     statusLayout->addRow(QStringLiteral("Wallet Path"), m_walletPathLabel);
     statusLayout->addRow(QStringLiteral("Wallet State"), m_walletStateLabel);
     statusLayout->addRow(QStringLiteral("Node"), m_nodeStatusLabel);
-    statusLayout->addRow(QStringLiteral("Active Upstream"), m_activeUpstreamLabel);
     statusLayout->addRow(QString(), statusButtons);
 
     m_appearanceBox = new QGroupBox(QStringLiteral("Appearance"), this);
@@ -60,59 +82,6 @@ SettingsPage::SettingsPage(QWidget *parent)
     appearanceHint->setStyleSheet(QStringLiteral("color: #475569;"));
     appearanceLayout->addRow(appearanceHint);
     appearanceLayout->addRow(QStringLiteral("Language"), m_languageCombo);
-
-    m_upstreamBox = new QGroupBox(QStringLiteral("RPC Upstreams"), this);
-    auto *upstreamLayout = new QFormLayout(m_upstreamBox);
-    upstreamLayout->setHorizontalSpacing(12);
-    upstreamLayout->setVerticalSpacing(8);
-    m_upstreamCombo = new QComboBox(this);
-    m_activateUpstreamButton = new QPushButton(QStringLiteral("Use Selected Upstream"), this);
-    m_upstreamNameEdit = new QLineEdit(this);
-    m_upstreamUrlEdit = new QLineEdit(this);
-    m_makeActiveCheck = new QCheckBox(QStringLiteral("Make active after adding"), this);
-    m_addUpstreamButton = new QPushButton(QStringLiteral("Add Custom Upstream"), this);
-    auto *knownProfilesRow = new QHBoxLayout();
-    knownProfilesRow->setSpacing(8);
-    knownProfilesRow->addWidget(m_upstreamCombo, 1);
-    knownProfilesRow->addWidget(m_activateUpstreamButton);
-    auto *upstreamActionsRow = new QHBoxLayout();
-    upstreamActionsRow->setSpacing(8);
-    upstreamActionsRow->addWidget(m_makeActiveCheck);
-    upstreamActionsRow->addStretch(1);
-    upstreamActionsRow->addWidget(m_addUpstreamButton);
-    upstreamLayout->addRow(QStringLiteral("Known Profiles"), knownProfilesRow);
-    upstreamLayout->addRow(QStringLiteral("Name"), m_upstreamNameEdit);
-    upstreamLayout->addRow(QStringLiteral("URL"), m_upstreamUrlEdit);
-    upstreamLayout->addRow(QString(), upstreamActionsRow);
-
-    m_backendBox = new QGroupBox(QStringLiteral("Backend Connection"), this);
-    auto *backendLayout = new QFormLayout(m_backendBox);
-    backendLayout->setHorizontalSpacing(12);
-    backendLayout->setVerticalSpacing(8);
-    m_urlEdit = new QLineEdit(QStringLiteral("http://127.0.0.1:19709"), this);
-    m_applyUrlButton = new QPushButton(QStringLiteral("Apply URL"), this);
-    auto *backendRow = new QHBoxLayout();
-    backendRow->setSpacing(8);
-    backendRow->addWidget(m_urlEdit, 1);
-    backendRow->addWidget(m_applyUrlButton);
-    backendLayout->addRow(QStringLiteral("Wallet API URL"), backendRow);
-
-    m_processBox = new QGroupBox(QStringLiteral("Local pacwallet Service"), this);
-    auto *processLayout = new QFormLayout(m_processBox);
-    processLayout->setHorizontalSpacing(12);
-    processLayout->setVerticalSpacing(8);
-    m_programEdit = new QLineEdit(QStringLiteral("pacwallet"), this);
-    m_argumentsEdit = new QLineEdit(QStringLiteral("serve --network mainnet --rpc https://rpc.pingancoin.org/rpc --listen 127.0.0.1:19709"), this);
-    m_startBackendButton = new QPushButton(QStringLiteral("Start Backend"), this);
-    m_stopBackendButton = new QPushButton(QStringLiteral("Stop Backend"), this);
-    auto *processButtons = new QHBoxLayout();
-    processButtons->setSpacing(8);
-    processButtons->addWidget(m_startBackendButton);
-    processButtons->addWidget(m_stopBackendButton);
-    processButtons->addStretch(1);
-    processLayout->addRow(QStringLiteral("Program"), m_programEdit);
-    processLayout->addRow(QStringLiteral("Arguments"), m_argumentsEdit);
-    processLayout->addRow(QString(), processButtons);
 
     m_securityBox = new QGroupBox(QStringLiteral("Wallet Security"), this);
     auto *securityLayout = new QFormLayout(m_securityBox);
@@ -156,42 +125,19 @@ SettingsPage::SettingsPage(QWidget *parent)
     m_backupBox = new QGroupBox(QStringLiteral("Archived Backups"), this);
     auto *backupLayout = new QVBoxLayout(m_backupBox);
     m_backupsList = new QListWidget(this);
+    m_backupsList->setMinimumHeight(128);
     backupLayout->addWidget(m_backupsList);
-
-    m_logView = new QTextEdit(this);
-    m_logView->setReadOnly(true);
 
     contentLayout->addWidget(m_statusBox, 0, 0);
     contentLayout->addWidget(m_appearanceBox, 0, 1);
-    contentLayout->addWidget(m_upstreamBox, 1, 0);
-    contentLayout->addWidget(m_backendBox, 1, 1);
-    contentLayout->addWidget(m_processBox, 2, 0);
-    contentLayout->addWidget(m_securityBox, 2, 1);
-    contentLayout->addWidget(m_importBox, 3, 0);
-    contentLayout->addWidget(m_backupBox, 3, 1);
-    contentLayout->addWidget(m_logView, 4, 0, 1, 2);
+    contentLayout->addWidget(m_securityBox, 1, 0);
+    contentLayout->addWidget(m_importBox, 1, 1);
+    contentLayout->addWidget(m_backupBox, 2, 0, 1, 2);
+    contentLayout->setRowStretch(3, 1);
 
     scrollArea->setWidget(content);
     layout->addWidget(scrollArea, 1);
 
-    connect(m_applyUrlButton, &QPushButton::clicked, this, [this]() {
-        emit backendUrlChanged(m_urlEdit->text());
-    });
-    connect(m_startBackendButton, &QPushButton::clicked, this, [this]() {
-        emit startBackendRequested(m_programEdit->text(), m_argumentsEdit->text().split(' ', Qt::SkipEmptyParts));
-    });
-    connect(m_stopBackendButton, &QPushButton::clicked, this, [this]() {
-        emit stopBackendRequested();
-    });
-    connect(m_activateUpstreamButton, &QPushButton::clicked, this, [this]() {
-        const QString id = m_upstreamCombo->currentData().toString();
-        if (!id.isEmpty()) {
-            emit selectUpstreamRequested(id);
-        }
-    });
-    connect(m_addUpstreamButton, &QPushButton::clicked, this, [this]() {
-        emit addUpstreamRequested(m_upstreamNameEdit->text(), m_upstreamUrlEdit->text(), m_makeActiveCheck->isChecked());
-    });
     connect(m_encryptButton, &QPushButton::clicked, this, [this]() {
         emit encryptWalletRequested(m_encryptPassphraseEdit->text());
     });
@@ -221,21 +167,6 @@ SettingsPage::SettingsPage(QWidget *parent)
     retranslateUi();
 }
 
-void SettingsPage::setBackendUrl(const QString &url)
-{
-    m_urlEdit->setText(url);
-}
-
-void SettingsPage::setBackendProgram(const QString &program)
-{
-    m_programEdit->setText(program);
-}
-
-void SettingsPage::setBackendArguments(const QStringList &arguments)
-{
-    m_argumentsEdit->setText(arguments.join(' '));
-}
-
 void SettingsPage::setOverview(const pacqt::Overview &overview)
 {
     m_overview = overview;
@@ -255,22 +186,6 @@ void SettingsPage::setOverview(const pacqt::Overview &overview)
         nodeText += l10n::text(QStringLiteral(" - %1")).arg(overview.node.error);
     }
     m_nodeStatusLabel->setText(nodeText);
-    m_activeUpstreamLabel->setText(QStringLiteral("%1 [%2]").arg(overview.upstream.activeUrl, overview.upstream.activeId));
-
-    m_upstreamCombo->blockSignals(true);
-    m_upstreamCombo->clear();
-    for (const UpstreamProfile &profile : overview.upstream.profiles) {
-        QString label = l10n::text(QStringLiteral("%1  (%2)")).arg(profile.name, profile.url);
-        if (profile.id == overview.upstream.activeId) {
-            label += l10n::text(QStringLiteral("  [active]"));
-        }
-        m_upstreamCombo->addItem(label, profile.id);
-    }
-    const int activeIndex = m_upstreamCombo->findData(overview.upstream.activeId);
-    if (activeIndex >= 0) {
-        m_upstreamCombo->setCurrentIndex(activeIndex);
-    }
-    m_upstreamCombo->blockSignals(false);
 
     m_backupsList->clear();
     for (const BackupInfo &backup : overview.wallet.backups) {
@@ -293,21 +208,18 @@ void SettingsPage::setCurrentLanguageCode(const QString &code)
 
 void SettingsPage::retranslateUi()
 {
-    m_statusBox->setTitle(l10n::text(QStringLiteral("Wallet Status")));
+    m_statusBox->setTitle(l10n::text(QStringLiteral("Wallet Details")));
     m_appearanceBox->setTitle(l10n::text(QStringLiteral("Appearance")));
-    m_upstreamBox->setTitle(l10n::text(QStringLiteral("RPC Upstreams")));
-    m_backendBox->setTitle(l10n::text(QStringLiteral("Backend Connection")));
-    m_processBox->setTitle(l10n::text(QStringLiteral("Local pacwallet Service")));
     m_securityBox->setTitle(l10n::text(QStringLiteral("Wallet Security")));
     m_importBox->setTitle(l10n::text(QStringLiteral("Import Private Key")));
     m_backupBox->setTitle(l10n::text(QStringLiteral("Archived Backups")));
 
     if (auto *form = qobject_cast<QFormLayout *>(m_statusBox->layout())) {
         const QStringList labels{
+            l10n::text(QStringLiteral("Wallet Version")),
             l10n::text(QStringLiteral("Wallet Path")),
             l10n::text(QStringLiteral("Wallet State")),
-            l10n::text(QStringLiteral("Node")),
-            l10n::text(QStringLiteral("Active Upstream"))
+            l10n::text(QStringLiteral("Node"))
         };
         for (int row = 0; row < labels.size(); ++row) {
             if (auto *item = form->itemAt(row, QFormLayout::LabelRole)) {
@@ -327,47 +239,9 @@ void SettingsPage::retranslateUi()
             hint->setText(l10n::text(QStringLiteral("Choose how the wallet interface is displayed on this Mac.")));
         }
     }
-    if (auto *form = qobject_cast<QFormLayout *>(m_upstreamBox->layout())) {
-        const QStringList labels{
-            l10n::text(QStringLiteral("Known Profiles")),
-            QString(),
-            l10n::text(QStringLiteral("Name")),
-            l10n::text(QStringLiteral("URL")),
-            QString(),
-            QString()
-        };
-        for (int row = 0; row < labels.size(); ++row) {
-            if (auto *item = form->itemAt(row, QFormLayout::LabelRole)) {
-                if (auto *label = qobject_cast<QLabel *>(item->widget())) {
-                    label->setText(labels.at(row));
-                }
-            }
-        }
-    }
-    if (auto *form = qobject_cast<QFormLayout *>(m_backendBox->layout())) {
-        if (auto *item = form->itemAt(0, QFormLayout::LabelRole)) {
-            if (auto *label = qobject_cast<QLabel *>(item->widget())) {
-                label->setText(l10n::text(QStringLiteral("Wallet API URL")));
-            }
-        }
-    }
-    if (auto *form = qobject_cast<QFormLayout *>(m_processBox->layout())) {
-        const QStringList labels{
-            l10n::text(QStringLiteral("Program")),
-            l10n::text(QStringLiteral("Arguments"))
-        };
-        for (int row = 0; row < labels.size(); ++row) {
-            if (auto *item = form->itemAt(row, QFormLayout::LabelRole)) {
-                if (auto *label = qobject_cast<QLabel *>(item->widget())) {
-                    label->setText(labels.at(row));
-                }
-            }
-        }
-    }
     if (auto *form = qobject_cast<QFormLayout *>(m_securityBox->layout())) {
         const QStringList labels{
             l10n::text(QStringLiteral("New Passphrase")),
-            QString(),
             l10n::text(QStringLiteral("Current Passphrase")),
             l10n::text(QStringLiteral("Replacement Passphrase"))
         };
@@ -408,47 +282,23 @@ void SettingsPage::retranslateUi()
 
     m_openWalletPathButton->setText(l10n::text(QStringLiteral("Open Wallet Location")));
     m_openBackupPathButton->setText(l10n::text(QStringLiteral("Open Backup Folder")));
-    m_activateUpstreamButton->setText(l10n::text(QStringLiteral("Use Selected Upstream")));
-    m_makeActiveCheck->setText(l10n::text(QStringLiteral("Make active after adding")));
-    m_addUpstreamButton->setText(l10n::text(QStringLiteral("Add Custom Upstream")));
-    m_applyUrlButton->setText(l10n::text(QStringLiteral("Apply URL")));
-    m_startBackendButton->setText(l10n::text(QStringLiteral("Start Backend")));
-    m_stopBackendButton->setText(l10n::text(QStringLiteral("Stop Backend")));
     m_encryptButton->setText(l10n::text(QStringLiteral("Encrypt Wallet")));
     m_changePassphraseButton->setText(l10n::text(QStringLiteral("Change Passphrase")));
     m_importButton->setText(l10n::text(QStringLiteral("Import Key")));
-    m_upstreamNameEdit->setPlaceholderText(l10n::text(QStringLiteral("Name")));
-    m_upstreamUrlEdit->setPlaceholderText(QStringLiteral("https://rpc1.pingancoin.org"));
     m_encryptPassphraseEdit->setPlaceholderText(l10n::text(QStringLiteral("New Passphrase")));
     m_oldPassphraseEdit->setPlaceholderText(l10n::text(QStringLiteral("Current Passphrase")));
     m_newPassphraseEdit->setPlaceholderText(l10n::text(QStringLiteral("Replacement Passphrase")));
     m_importLabelEdit->setPlaceholderText(l10n::text(QStringLiteral("Label")));
     m_importKeyEdit->setPlaceholderText(QStringLiteral("hex..."));
     m_importPassphraseEdit->setPlaceholderText(l10n::text(QStringLiteral("Passphrase")));
-    m_logView->setPlaceholderText(l10n::text(QStringLiteral("Service Logs")));
     if (m_hasOverview) {
         setOverview(m_overview);
     }
 }
 
-QString SettingsPage::backendUrl() const
-{
-    return m_urlEdit->text();
-}
-
-QString SettingsPage::backendProgram() const
-{
-    return m_programEdit->text();
-}
-
-QStringList SettingsPage::backendArguments() const
-{
-    return m_argumentsEdit->text().split(' ', Qt::SkipEmptyParts);
-}
-
 void SettingsPage::appendLog(const QString &line)
 {
-    m_logView->append(line.trimmed());
+    Q_UNUSED(line);
 }
 
 } // namespace pacqt

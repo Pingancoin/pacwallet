@@ -68,7 +68,7 @@ try {
     }
 
     Write-Host "Configuring Qt frontend..."
-    Invoke-VsCommand "`"$qtCmake`" -S qt -B `"$buildDir`" -G Ninja -DCMAKE_BUILD_TYPE=Release"
+    Invoke-VsCommand "`"$qtCmake`" -S qt -B `"$buildDir`" -G Ninja -DCMAKE_BUILD_TYPE=Release -DPACWALLET_QT_VERSION=`"$Version`""
 
     Write-Host "Building Qt frontend..."
     Invoke-VsCommand "cmake --build `"$buildDir`" -j4"

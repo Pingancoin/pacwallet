@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.21)
 
 project(PingancoinWalletQt VERSION 0.1.0 LANGUAGES CXX)
 
+set(PACWALLET_QT_VERSION "${PROJECT_VERSION}" CACHE STRING "Pingancoin wallet display version")
+
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
@@ -31,6 +33,10 @@ qt_add_executable(pacwallet-qt
 
 target_include_directories(pacwallet-qt PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_compile_definitions(pacwallet-qt PRIVATE
+    PACWALLET_QT_VERSION="${PACWALLET_QT_VERSION}"
 )
 
 target_link_libraries(pacwallet-qt PRIVATE

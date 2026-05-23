@@ -144,21 +144,6 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_settingsPage, &SettingsPage::encryptWalletRequested, &m_api, &ApiClient::encryptWallet);
     connect(m_settingsPage, &SettingsPage::changePassphraseRequested, &m_api, &ApiClient::changePassphrase);
     connect(m_settingsPage, &SettingsPage::importPrivateKeyRequested, &m_api, &ApiClient::importPrivateKey);
-    connect(m_settingsPage, &SettingsPage::addUpstreamRequested, &m_api, &ApiClient::addUpstream);
-    connect(m_settingsPage, &SettingsPage::selectUpstreamRequested, &m_api, &ApiClient::selectUpstream);
-    connect(m_settingsPage, &SettingsPage::backendUrlChanged, this, [this](const QString &url) {
-        m_api.setBaseUrl(QUrl(url));
-        saveSettings();
-        statusBar()->showMessage(l10n::text(QStringLiteral("Backend URL updated.")), 3000);
-        refreshOverview();
-    });
-    connect(m_settingsPage, &SettingsPage::startBackendRequested, this, [this](const QString &program, const QStringList &arguments) {
-        m_service.setProgram(program);
-        m_service.setArguments(arguments);
-        saveSettings();
-        m_service.start();
-    });
-    connect(m_settingsPage, &SettingsPage::stopBackendRequested, &m_service, &ServiceController::stop);
     connect(&m_service, &ServiceController::serviceLog, m_settingsPage, &SettingsPage::appendLog);
     connect(&m_service, &ServiceController::serviceError, this, [this](const QString &message) {
         m_backendAutoStartPending = false;
@@ -392,9 +377,6 @@ void MainWindow::loadSettings()
     m_service.setProgram(backendProgram);
     m_service.setArguments(backendArguments);
     applyLanguage(languageCode, false);
-    m_settingsPage->setBackendUrl(backendUrl);
-    m_settingsPage->setBackendProgram(backendProgram);
-    m_settingsPage->setBackendArguments(backendArguments);
     restoreGeometry(settings.value(QStringLiteral("window/geometry")).toByteArray());
     resize(kDefaultWindowWidth, kDefaultWindowHeight);
     if (migrated) {
@@ -477,7 +459,7 @@ void MainWindow::retranslateUi()
 {
     setWindowTitle(l10n::text(QStringLiteral("Pingancoin Wallet")));
     m_brandLabel->setText(l10n::text(QStringLiteral("Pingancoin Wallet")));
-    m_brandSubLabel->setText(l10n::text(QStringLiteral("Native desktop wallet for balances, transfers, multisig, and node settings.")));
+    m_brandSubLabel->setText(l10n::text(QStringLiteral("Native desktop wallet for balances, transfers, receive addresses, and multisig.")));
     const int currentRow = m_nav->currentRow();
     const QStringList items{
         l10n::text(QStringLiteral("Welcome")),
@@ -524,7 +506,7 @@ QString MainWindow::pageSubtitleForIndex(int index) const
     case 3: return l10n::text(QStringLiteral("Prepare a payment, choose fee and change behavior, then confirm before broadcasting."));
     case 4: return l10n::text(QStringLiteral("Search through transfers, coinbase rewards, and raw transaction details in one place."));
     case 5: return l10n::text(QStringLiteral("Preview the project multisig address, export signer data, and save the final scripts."));
-    case 6: return l10n::text(QStringLiteral("Switch language, manage upstream nodes, tune the local service, and harden wallet security."));
+    case 6: return l10n::text(QStringLiteral("Switch language, review wallet information, and harden wallet security."));
     default: return QString();
     }
 }
