@@ -35,7 +35,7 @@ func main() {
 func run() error {
 	flags := flag.NewFlagSet("pacwallet-desktop", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
-	network := flags.String("network", "simnet", "network to use: mainnet, testnet, simnet")
+	network := flags.String("network", "simnet", "network to use: mainnet, stagenet, testnet, simnet")
 	walletDir := flags.String("walletdir", wallet.DefaultDir(), "base wallet directory")
 	rpcURL := flags.String("rpc", "https://rpc.pingancoin.org/rpc", "pacd RPC URL")
 	listen := flags.String("listen", "127.0.0.1:0", "desktop wallet service listen address")
@@ -403,6 +403,8 @@ func selectParams(network string) (*chaincfg.Params, error) {
 	switch network {
 	case "mainnet":
 		return chaincfg.MainNetParams(), nil
+	case "stagenet":
+		return chaincfg.StageNetParams(), nil
 	case "testnet":
 		return chaincfg.TestNetParams(), nil
 	case "simnet":

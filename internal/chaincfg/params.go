@@ -15,6 +15,11 @@ const (
 	PlaceholderProjectPayoutScript = "PAC_MAINNET_3_OF_5_PROJECT_MULTISIG_SCRIPT_REPLACE_BEFORE_LAUNCH"
 )
 
+var (
+	defaultGenesisTime  = time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	stageNetGenesisTime = time.Date(2026, 5, 23, 0, 0, 0, 0, time.UTC)
+)
+
 type Params struct {
 	Name                 string
 	Ticker               string
@@ -52,6 +57,14 @@ func MainNetProjectPayoutIsPlaceholder(params *Params) bool {
 	return string(params.ProjectPayoutScript) == PlaceholderProjectPayoutScript
 }
 
+func StageNetParams() *Params {
+	params := commonParamsWithGenesisTime("stagenet", "G", "39508", 0x43, 0x44, 0x207fffff, 0x207fffff, 255, stageNetGenesisTime)
+	params.ASERTHalfLife = 20 * time.Minute
+	params.CoinbaseMaturity = 10
+	params.ProjectPayoutScript = []byte("PAC_STAGENET_3_OF_5_PROJECT_MULTISIG_SCRIPT")
+	return params
+}
+
 func TestNetParams() *Params {
 	params := commonParams("testnet", "T", "19508", 0x41, 0x42, 0x207fffff, 0x207fffff, 255)
 	params.CoinbaseMaturity = 100
@@ -68,8 +81,12 @@ func SimNetParams() *Params {
 }
 
 func commonParams(name, addressPrefix, defaultPort string, pubKeyHashAddrID, scriptHashAddrID byte, powLimitBits, genesisBits uint32, powLimitShift uint) *Params {
+	return commonParamsWithGenesisTime(name, addressPrefix, defaultPort, pubKeyHashAddrID, scriptHashAddrID, powLimitBits, genesisBits, powLimitShift, defaultGenesisTime)
+}
+
+func commonParamsWithGenesisTime(name, addressPrefix, defaultPort string, pubKeyHashAddrID, scriptHashAddrID byte, powLimitBits, genesisBits uint32, powLimitShift uint, genesisTime time.Time) *Params {
 	powLimit := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), powLimitShift), big.NewInt(1))
-	genesisBlock := genesisBlock(genesisBits)
+	genesisBlock := genesisBlock(genesisBits, genesisTime)
 
 	params := &Params{
 		Name:                 name,
@@ -98,7 +115,7 @@ func commonParams(name, addressPrefix, defaultPort string, pubKeyHashAddrID, scr
 	return params
 }
 
-func genesisBlock(bits uint32) *wire.MsgBlock {
+func genesisBlock(bits uint32, timestamp time.Time) *wire.MsgBlock {
 	genesisTx := wire.NewCoinbaseTx(0, GenesisMessage, []*wire.TxOut{{
 		Value:    0,
 		PkScript: []byte(GenesisMessage),
@@ -108,7 +125,7 @@ func genesisBlock(bits uint32) *wire.MsgBlock {
 		Header: wire.BlockHeader{
 			Version:   1,
 			PrevBlock: wire.ZeroHash(),
-			Timestamp: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC).Unix(),
+			Timestamp: timestamp.UTC().Unix(),
 			Bits:      bits,
 			Nonce:     0,
 			Height:    0,
