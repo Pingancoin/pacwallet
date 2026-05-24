@@ -29,7 +29,6 @@ The release also includes a SHA256 checksum file.
 ## What The Wallet Does
 
 - create a new local PAC wallet
-- create stagenet wallets with `G...` test addresses for launch rehearsal
 - restore a wallet from a wallet file
 - show balance, wallet status, and node status
 - generate receive addresses and QR codes
