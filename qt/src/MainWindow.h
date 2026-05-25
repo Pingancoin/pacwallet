@@ -35,6 +35,8 @@ private:
     QString pageTitleForIndex(int index) const;
     QString pageSubtitleForIndex(int index) const;
     void updatePageHeader(int index);
+    void selectPage(int index);
+    void applyWalletAvailabilityToNav();
     void applyLanguage(const QString &code, bool persist = true);
     void retranslateUi();
     void buildUi();

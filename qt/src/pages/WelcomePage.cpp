@@ -3,6 +3,7 @@
 
 #include <QFileDialog>
 #include <QFile>
+#include <QDir>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -87,17 +88,25 @@ WelcomePage::WelcomePage(QWidget *parent)
 
 void WelcomePage::setWalletExists(bool exists, const QString &path)
 {
-    m_passphraseEdit->setEnabled(!exists);
-    m_createButton->setEnabled(!exists);
+    m_walletExists = exists;
+    m_walletPath = path;
+    refreshCreateState();
+}
+
+void WelcomePage::refreshCreateState()
+{
+    const QString path = QDir::toNativeSeparators(m_walletPath);
+    m_passphraseEdit->setEnabled(!m_walletExists);
+    m_createButton->setEnabled(!m_walletExists);
     if (auto *createHint = findChild<QLabel *>(QStringLiteral("welcomeCreateHint"))) {
-        if (exists) {
+        if (m_walletExists) {
             createHint->setText(l10n::text(QStringLiteral("A local wallet is already loaded from %1. Open Overview to use it, or restore another wallet with overwrite enabled."))
                 .arg(path.isEmpty() ? l10n::text(QStringLiteral("the current wallet folder")) : path));
         } else {
             createHint->setText(l10n::text(QStringLiteral("Create and restore")));
         }
     }
-    m_createButton->setText(exists
+    m_createButton->setText(m_walletExists
         ? l10n::text(QStringLiteral("Wallet Already Exists"))
         : l10n::text(QStringLiteral("Create Wallet")));
 }
@@ -117,15 +126,10 @@ void WelcomePage::retranslateUi()
     }
     m_passphraseEdit->setPlaceholderText(l10n::text(QStringLiteral("Passphrase")));
     m_restoreEdit->setPlaceholderText(l10n::text(QStringLiteral("Paste wallet.json contents here")));
-    if (auto *createHint = findChild<QLabel *>(QStringLiteral("welcomeCreateHint"))) {
-        if (m_createButton->isEnabled()) {
-            createHint->setText(l10n::text(QStringLiteral("Create and restore")));
-        }
-    }
     m_overwriteCheck->setText(l10n::text(QStringLiteral("Overwrite any existing local wallet and archive it first")));
-    m_createButton->setText(l10n::text(QStringLiteral("Create Wallet")));
     m_browseButton->setText(l10n::text(QStringLiteral("Load wallet.json From File")));
     m_restoreButton->setText(l10n::text(QStringLiteral("Restore Wallet")));
+    refreshCreateState();
 }
 
 } // namespace pacqt

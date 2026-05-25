@@ -12,6 +12,7 @@
 #include <QMessageBox>
 #include <QSettings>
 #include <QShowEvent>
+#include <QSignalBlocker>
 #include <QStatusBar>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -71,13 +72,59 @@ bool shouldMigrateBackendArguments(const QStringList &arguments)
     return false;
 }
 
+QString operationLabel(const QString &operation)
+{
+    if (operation == QStringLiteral("overview")) return l10n::text(QStringLiteral("Wallet Sync"));
+    if (operation == QStringLiteral("transaction")) return l10n::text(QStringLiteral("Transaction Detail"));
+    if (operation == QStringLiteral("receive-qr")) return l10n::text(QStringLiteral("Receive QR"));
+    if (operation == QStringLiteral("create-wallet")) return l10n::text(QStringLiteral("Create Wallet"));
+    if (operation == QStringLiteral("encrypt-wallet")) return l10n::text(QStringLiteral("Encrypt Wallet"));
+    if (operation == QStringLiteral("change-passphrase")) return l10n::text(QStringLiteral("Change Passphrase"));
+    if (operation == QStringLiteral("restore-wallet")) return l10n::text(QStringLiteral("Restore Wallet"));
+    if (operation == QStringLiteral("create-address")) return l10n::text(QStringLiteral("Create Address"));
+    if (operation == QStringLiteral("import-private-key")) return l10n::text(QStringLiteral("Import Key"));
+    if (operation == QStringLiteral("add-upstream")) return l10n::text(QStringLiteral("Add Custom Upstream"));
+    if (operation == QStringLiteral("select-upstream")) return l10n::text(QStringLiteral("Use Selected Upstream"));
+    if (operation == QStringLiteral("send")) return l10n::text(QStringLiteral("Send Transaction"));
+    if (operation == QStringLiteral("multisig-preview")) return l10n::text(QStringLiteral("Preview Multisig Address"));
+    if (operation == QStringLiteral("service")) return l10n::text(QStringLiteral("Local pacwallet Service"));
+    return operation;
+}
+
+QString localizedBackendMessage(const QString &message)
+{
+    const QString trimmed = message.trimmed();
+    const QString lower = trimmed.toLower();
+    const QString walletExistsPrefix = QStringLiteral("wallet already exists at ");
+    const int walletExistsAt = lower.indexOf(walletExistsPrefix);
+    if (walletExistsAt >= 0) {
+        const QString path = trimmed.mid(walletExistsAt + walletExistsPrefix.size()).trimmed();
+        if (!path.isEmpty()) {
+            return l10n::text(QStringLiteral("A local wallet already exists at %1")).arg(QDir::toNativeSeparators(path));
+        }
+        return l10n::text(QStringLiteral("A local wallet already exists."));
+    }
+    if (lower.contains(QStringLiteral("wallet already exists"))) {
+        return l10n::text(QStringLiteral("A local wallet already exists."));
+    }
+    if (lower.contains(QStringLiteral("connection refused"))) {
+        return l10n::text(QStringLiteral("Unable to connect to the local wallet service."));
+    }
+    if (lower.contains(QStringLiteral("host not found"))) {
+        return l10n::text(QStringLiteral("Unable to resolve the wallet node address."));
+    }
+    if (lower.contains(QStringLiteral("timed out")) || lower.contains(QStringLiteral("timeout"))) {
+        return l10n::text(QStringLiteral("The network request timed out."));
+    }
+    return trimmed;
+}
+
 }
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
     buildUi();
-    loadSettings();
 
     connect(&m_api, &ApiClient::overviewReady, this, [this](const Overview &overview) {
         m_walletAvailable = overview.wallet.exists;
@@ -99,7 +146,11 @@ MainWindow::MainWindow(QWidget *parent)
     });
     connect(&m_api, &ApiClient::walletCreated, this, [this]() {
         statusBar()->showMessage(l10n::text(QStringLiteral("Wallet created.")), 3000);
+        m_walletAvailable = true;
+        setWalletAvailable(true);
+        selectPage(1);
         refreshOverview();
+        QTimer::singleShot(350, this, &MainWindow::refreshOverview);
     });
     connect(&m_api, &ApiClient::walletEncrypted, this, [this]() {
         statusBar()->showMessage(l10n::text(QStringLiteral("Wallet encrypted.")), 3000);
@@ -111,7 +162,11 @@ MainWindow::MainWindow(QWidget *parent)
     });
     connect(&m_api, &ApiClient::walletRestored, this, [this]() {
         statusBar()->showMessage(l10n::text(QStringLiteral("Wallet restored.")), 3000);
+        m_walletAvailable = true;
+        setWalletAvailable(true);
+        selectPage(1);
         refreshOverview();
+        QTimer::singleShot(350, this, &MainWindow::refreshOverview);
     });
     connect(&m_api, &ApiClient::addressCreated, this, [this]() {
         statusBar()->showMessage(l10n::text(QStringLiteral("New receive address created.")), 3000);
@@ -178,6 +233,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(&m_refreshTimer, &QTimer::timeout, this, &MainWindow::refreshOverview);
     m_refreshTimer.start();
 
+    loadSettings();
     QTimer::singleShot(0, this, &MainWindow::refreshOverview);
 }
 
@@ -284,18 +340,23 @@ void MainWindow::buildUi()
     setCentralWidget(root);
 
     connect(m_nav, &QListWidget::currentRowChanged, this, [this](int row) {
-        m_stack->setCurrentIndex(row);
-        updatePageHeader(row);
+        if (row >= 0) {
+            selectPage(row);
+        }
     });
-    m_nav->setCurrentRow(0);
     retranslateUi();
+    selectPage(0);
     statusBar()->showMessage(l10n::text(QStringLiteral("Native Qt wallet ready.")));
 }
 
 void MainWindow::refreshOverview()
 {
     if (m_backendAutoStartPending) {
-        return;
+        if (m_service.isRunning()) {
+            m_backendAutoStartPending = false;
+        } else {
+            return;
+        }
     }
     ensureLocalBackendRunning();
     if (m_backendAutoStartPending) {
@@ -311,6 +372,8 @@ void MainWindow::refreshOverview()
 
 void MainWindow::showError(const QString &operation, const QString &message)
 {
+    const QString operationText = operationLabel(operation);
+    const QString messageText = localizedBackendMessage(message);
     if (operation == QStringLiteral("overview") &&
         !m_windowClosing &&
         !m_backendAutoStartPending) {
@@ -327,32 +390,58 @@ void MainWindow::showError(const QString &operation, const QString &message)
     if (operation == QStringLiteral("create-wallet") &&
         message.contains(QStringLiteral("wallet already exists"), Qt::CaseInsensitive)) {
         statusBar()->showMessage(l10n::text(QStringLiteral("A local wallet already exists. Opened the current wallet instead.")), 5000);
-        m_settingsPage->appendLog(QStringLiteral("%1 failed: %2").arg(operation, message));
+        m_settingsPage->appendLog(l10n::text(QStringLiteral("%1 failed: %2")).arg(operationText, messageText));
+        setWalletAvailable(true);
+        selectPage(1);
         refreshOverview();
-        if (m_walletAvailable) {
-            m_nav->setCurrentRow(1);
-        }
         return;
     }
     if (operation == QStringLiteral("overview") || operation == QStringLiteral("receive-qr")) {
-        statusBar()->showMessage(QStringLiteral("%1 failed: %2").arg(operation, message), 5000);
-        m_settingsPage->appendLog(QStringLiteral("%1 failed: %2").arg(operation, message));
+        statusBar()->showMessage(l10n::text(QStringLiteral("%1 failed: %2")).arg(operationText, messageText), 5000);
+        m_settingsPage->appendLog(l10n::text(QStringLiteral("%1 failed: %2")).arg(operationText, messageText));
         return;
     }
-    QMessageBox::warning(this, l10n::text(QStringLiteral("Pingancoin Wallet")), l10n::text(QStringLiteral("%1 failed: %2")).arg(operation, message));
-    statusBar()->showMessage(l10n::text(QStringLiteral("%1 failed.")).arg(operation), 4000);
+    QMessageBox::warning(this, l10n::text(QStringLiteral("Pingancoin Wallet")), l10n::text(QStringLiteral("%1 failed: %2")).arg(operationText, messageText));
+    statusBar()->showMessage(l10n::text(QStringLiteral("%1 failed: %2")).arg(operationText, messageText), 5000);
 }
 
 void MainWindow::setWalletAvailable(bool available)
 {
-    for (int i = 1; i < m_nav->count(); ++i) {
-        m_nav->item(i)->setFlags(available ? (Qt::ItemIsSelectable | Qt::ItemIsEnabled) : Qt::NoItemFlags);
-    }
+    m_walletAvailable = available;
+    applyWalletAvailabilityToNav();
     if (!available) {
-        m_nav->setCurrentRow(0);
-    } else if (m_nav->currentRow() == 0) {
-        m_nav->setCurrentRow(1);
+        selectPage(0);
+    } else if (m_nav->currentRow() <= 0 || m_stack->currentIndex() < 0) {
+        selectPage(1);
+    } else {
+        selectPage(m_nav->currentRow());
     }
+}
+
+void MainWindow::applyWalletAvailabilityToNav()
+{
+    if (!m_nav) {
+        return;
+    }
+    for (int i = 1; i < m_nav->count(); ++i) {
+        m_nav->item(i)->setFlags(m_walletAvailable ? (Qt::ItemIsSelectable | Qt::ItemIsEnabled) : Qt::NoItemFlags);
+    }
+}
+
+void MainWindow::selectPage(int index)
+{
+    if (!m_nav || !m_stack || m_stack->count() == 0) {
+        return;
+    }
+    const int clamped = qBound(0, index, m_stack->count() - 1);
+    if (m_nav->currentRow() != clamped) {
+        QSignalBlocker blocker(m_nav);
+        m_nav->setCurrentRow(clamped);
+    }
+    if (m_stack->currentIndex() != clamped) {
+        m_stack->setCurrentIndex(clamped);
+    }
+    updatePageHeader(clamped);
 }
 
 void MainWindow::loadSettings()
@@ -475,9 +564,14 @@ void MainWindow::retranslateUi()
         l10n::text(QStringLiteral("Multisig")),
         l10n::text(QStringLiteral("Settings"))
     };
-    m_nav->clear();
-    m_nav->addItems(items);
-    m_nav->setCurrentRow(currentRow < 0 ? 0 : qMin(currentRow, m_nav->count() - 1));
+    const int targetRow = currentRow < 0 ? 0 : qMin(currentRow, items.size() - 1);
+    {
+        QSignalBlocker blocker(m_nav);
+        m_nav->clear();
+        m_nav->addItems(items);
+        applyWalletAvailabilityToNav();
+        m_nav->setCurrentRow(targetRow);
+    }
     m_welcomePage->retranslateUi();
     m_overviewPage->retranslateUi();
     m_receivePage->retranslateUi();
@@ -485,7 +579,7 @@ void MainWindow::retranslateUi()
     m_transactionsPage->retranslateUi();
     m_multisigPage->retranslateUi();
     m_settingsPage->retranslateUi();
-    updatePageHeader(m_nav->currentRow());
+    selectPage(targetRow);
 }
 
 QString MainWindow::pageTitleForIndex(int index) const

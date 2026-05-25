@@ -24,6 +24,8 @@ signals:
     void restoreWalletRequested(const QString &walletJson, bool overwrite);
 
 private:
+    void refreshCreateState();
+
     QLabel *m_heroLabel;
     QLabel *m_subLabel;
     QGroupBox *m_createBox;
@@ -34,6 +36,8 @@ private:
     QPushButton *m_createButton;
     QPushButton *m_browseButton;
     QPushButton *m_restoreButton;
+    bool m_walletExists = false;
+    QString m_walletPath;
 };
 
 } // namespace pacqt
